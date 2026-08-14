@@ -23,7 +23,8 @@ export default function TimePassPage() {
   const playerRef = useRef(null);
   const intervalRef = useRef(null);
 
-  const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
+  // এখানে তোমার API Key সরাসরি বসানো হলো
+  const API_KEY = "AIzaSyBE_ZFfPmrAMF4Bv6L8WAiwTW6_6pv-c0w";
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -71,7 +72,7 @@ export default function TimePassPage() {
     setIsMinimized(false);
   };
 
-  // YouTube IFrame API লোড করা এবং প্লেয়ার তৈরি করা
+  // YouTube IFrame API লোড করা এবং প্লেয়ার তৈরি করা
   useEffect(() => {
     if (!currentVideo) return;
 

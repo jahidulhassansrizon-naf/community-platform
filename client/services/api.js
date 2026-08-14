@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create base instance
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: "https://community-platform-b5wm.onrender.com/api",
 });
 
 // Add interceptor to automatically include token in headers

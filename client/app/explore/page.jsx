@@ -80,7 +80,7 @@ export default function ExplorePage() {
     if (imagePath.startsWith("http")) return imagePath;
     const backendUrl = API.defaults.baseURL
       ? API.defaults.baseURL.replace("/api", "")
-      : "http://localhost:5000";
+      : "https://community-platform-b5wm.onrender.com";
     return `${backendUrl}${imagePath.startsWith("/") ? "" : "/"}${imagePath}`;
   };
 

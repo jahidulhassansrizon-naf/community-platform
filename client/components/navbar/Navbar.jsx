@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import API from "../../services/api";
 
+const BACKEND_URL = "https://community-platform-b5wm.onrender.com";
+
 export default function Navbar() {
   const [user, setUser] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -31,7 +33,7 @@ export default function Navbar() {
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "";
     if (imagePath.startsWith("http")) return imagePath;
-    return `http://localhost:5000${imagePath}`;
+    return `${BACKEND_URL}${imagePath}`;
   };
 
   // Check if current user is admin

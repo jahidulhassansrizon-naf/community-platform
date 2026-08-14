@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react"; // Arrow icon-এর জন্য
+import { ArrowLeft } from "lucide-react";
 import API from "../../../services/api";
+
+const BACKEND_URL = "https://community-platform-b5wm.onrender.com";
 
 export default function UserProfilePage() {
   const { username } = useParams();
-  const router = useRouter(); // ব্যাক করার জন্য রাউটার ব্যবহার করছি
+  const router = useRouter();
   const [profileUser, setProfileUser] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,11 +29,10 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     if (username) {
-      fetch(`http://localhost:5000/api/users/${username}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setProfileUser(data.user);
-          setUserPosts(data.posts || []);
+      API.get(`/users/${username}`)
+        .then((res) => {
+          setProfileUser(res.data.user);
+          setUserPosts(res.data.posts || []);
           setLoading(false);
         })
         .catch((err) => {
@@ -44,7 +45,7 @@ export default function UserProfilePage() {
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "https://via.placeholder.com/150";
     if (imagePath.startsWith("http")) return imagePath;
-    return `http://localhost:5000${imagePath}`;
+    return `${BACKEND_URL}${imagePath}`;
   };
 
   const handleImageUpload = async (e) => {
@@ -83,7 +84,7 @@ export default function UserProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
-      {/* Back Button - নতুন অংশ */}
+      {/* Back Button */}
       <div className="max-w-5xl mx-auto pt-6 px-4">
         <button
           onClick={() => router.back()}
@@ -163,7 +164,11 @@ export default function UserProfilePage() {
                 className="bg-white p-5 shadow-sm rounded-2xl border border-gray-100 hover:shadow-md transition"
               >
                 <span
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-full ${post.type === "NEED" ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"}`}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    post.type === "NEED"
+                      ? "bg-orange-100 text-orange-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
                 >
                   {post.type}
                 </span>

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
+import API from "../../services/api";
 import Navbar from "../../components/navbar/Navbar";
 
 export default function RegisterPage() {
@@ -158,14 +158,14 @@ export default function RegisterPage() {
     }
 
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/send-otp", {
+      const res = await API.post("/auth/send-otp", {
         name,
         username,
         email,
         password,
         phone,
         city,
-        adminSecretKey, // Sending secret key if user typed it
+        adminSecretKey,
       });
       if (res.data.success) {
         setStep(2);
@@ -180,13 +180,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/auth/verify-otp",
-        {
-          email,
-          otp,
-        },
-      );
+      const res = await API.post("/auth/verify-otp", {
+        email,
+        otp,
+      });
       if (res.data.success) {
         router.push("/login");
       }
@@ -446,7 +443,7 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* 🔑 Admin Secret Key Field (Optional for normal users, required for admin registration) */}
+                {/* 🔑 Admin Secret Key Field */}
                 <div className="pt-2">
                   <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
                     Admin Secret Key (Optional)

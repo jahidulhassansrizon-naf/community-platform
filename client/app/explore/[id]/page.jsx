@@ -9,7 +9,7 @@ export default function PostDetailsPage() {
 
   useEffect(() => {
     if (id) {
-      fetch(`http://localhost:5000/api/posts/${id}`)
+      fetch(`https://community-platform-b5wm.onrender.com/api/posts/${id}`)
         .then((res) => res.json())
         .then((data) => {
           setPost(data);

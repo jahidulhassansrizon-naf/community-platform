@@ -24,7 +24,7 @@ function MessagesContent() {
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "";
     if (imagePath.startsWith("http")) return imagePath;
-    return `http://localhost:5000${imagePath}`;
+    return `https://community-platform-b5wm.onrender.com${imagePath}`;
   };
 
   const scrollToBottom = () => {

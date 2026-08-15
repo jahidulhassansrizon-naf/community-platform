@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings, LogOut, X } from "lucide-react";
 import API from "../../../services/api";
 
 const BACKEND_URL = "https://community-platform-b5wm.onrender.com";
@@ -14,6 +14,12 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  // Settings Modal States
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     const fetchCurrentAuthUser = async () => {
@@ -33,6 +39,8 @@ export default function UserProfilePage() {
         .then((res) => {
           setProfileUser(res.data.user);
           setUserPosts(res.data.posts || []);
+          setNewName(res.data.user.name || "");
+          setNewUsername(res.data.user.username || "");
           setLoading(false);
         })
         .catch((err) => {
@@ -67,6 +75,35 @@ export default function UserProfilePage() {
     }
   };
 
+  // Profile Update Handler (Name & Username)
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    try {
+      setUpdating(true);
+      // এখানে পাথটি পরিবর্তন করে সরাসরি /users/update-profile দিতে হবে
+      const { data } = await API.put("/users/update-profile", {
+        name: newName,
+        username: newUsername,
+      });
+      setProfileUser(data.user);
+      setIsSettingsOpen(false);
+      if (data.user.username !== username) {
+        router.push(`/profile/${data.user.username}`);
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      alert(error.response?.data?.message || "Failed to update profile");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Logout Handler
+  const handleLogout = () => {
+    localStorage.removeItem("token"); // টোকেন রিমুভ করা
+    router.push("/login"); // লগইন পেজে পাঠিয়ে দেওয়া
+  };
+
   if (loading)
     return (
       <div className="p-12 text-center text-lg font-medium text-gray-600">
@@ -84,8 +121,8 @@ export default function UserProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
-      {/* Back Button */}
-      <div className="max-w-5xl mx-auto pt-6 px-4">
+      {/* Back Button & Settings Button */}
+      <div className="max-w-5xl mx-auto pt-6 px-4 flex justify-between items-center">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 transition-colors font-medium mb-4"
@@ -93,6 +130,16 @@ export default function UserProfilePage() {
           <ArrowLeft size={20} />
           Go Back
         </button>
+
+        {isOwnProfile && (
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700 transition shadow-sm mb-4"
+          >
+            <Settings size={18} />
+            Settings
+          </button>
+        )}
       </div>
 
       <div className="max-w-5xl mx-auto bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100">
@@ -185,6 +232,70 @@ export default function UserProfilePage() {
           )}
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative animate-fadeIn">
+            <button
+              onClick={() => setIsSettingsOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Edit Profile Settings
+            </h2>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={updating}
+                className="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition shadow-sm"
+              >
+                {updating ? "Saving Changes..." : "Save Changes"}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 py-2.5 rounded-xl font-semibold hover:bg-red-100 transition"
+              >
+                <LogOut size={18} />
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

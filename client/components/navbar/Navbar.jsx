@@ -88,12 +88,6 @@ export default function Navbar() {
               Messages
             </Link>
             <Link
-              href="/timepass"
-              className={`hover:text-emerald-600 transition ${pathname === "/timepass" ? "text-emerald-600 font-bold" : ""}`}
-            >
-              Time Pass
-            </Link>
-            <Link
               href="/shop"
               className={`hover:text-emerald-600 transition ${pathname === "/shop" ? "text-emerald-600 font-bold" : ""}`}
             >
@@ -203,13 +197,6 @@ export default function Navbar() {
                 className={`px-3 py-2 rounded-lg hover:bg-slate-50 ${pathname === "/messages" ? "bg-emerald-50 text-emerald-600 font-bold" : ""}`}
               >
                 Messages
-              </Link>
-              <Link
-                href="/timepass"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-lg hover:bg-slate-50 ${pathname === "/timepass" ? "bg-emerald-50 text-emerald-600 font-bold" : ""}`}
-              >
-                Time Pass
               </Link>
               <Link
                 href="/shop"

@@ -23,8 +23,9 @@ const getUserProfile = catchAsync(async (req, res) => {
 const updateProfileImage = catchAsync(async (req, res) => {
   let imagePath = "";
 
+  // Cloudinary থেকে আসা ইমেজ পাথ ব্যবহার করা
   if (req.file) {
-    imagePath = `/uploads/${req.file.filename}`;
+    imagePath = req.file.path; // Cloudinary সরাসরি পুরো URL দিয়ে দেবে
   } else if (req.body.profileImage) {
     imagePath = req.body.profileImage;
   }

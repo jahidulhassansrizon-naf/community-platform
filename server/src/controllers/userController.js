@@ -23,9 +23,8 @@ const getUserProfile = catchAsync(async (req, res) => {
 const updateProfileImage = catchAsync(async (req, res) => {
   let imagePath = "";
 
-  // Cloudinary থেকে আসা ইমেজ পাথ ব্যবহার করা
   if (req.file) {
-    imagePath = req.file.path; // Cloudinary সরাসরি পুরো URL দিয়ে দেবে
+    imagePath = req.file.path;
   } else if (req.body.profileImage) {
     imagePath = req.body.profileImage;
   }
@@ -39,6 +38,28 @@ const updateProfileImage = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     profileImage: updatedUser.profileImage,
+    user: updatedUser,
+  });
+});
+
+const updateProfile = catchAsync(async (req, res) => {
+  const { name, username } = req.body;
+
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  user.name = name || user.name;
+  user.username = username || user.username;
+
+  const updatedUser = await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Profile updated successfully",
     user: updatedUser,
   });
 });
@@ -69,6 +90,7 @@ const deleteUser = catchAsync(async (req, res) => {
 module.exports = {
   getUserProfile,
   updateProfileImage,
+  updateProfile,
   getAllUsers,
   deleteUser,
 };

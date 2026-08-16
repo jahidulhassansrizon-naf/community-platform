@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -31,12 +31,16 @@ export default function UserProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
 
+  // Profile Picture Dropdown State
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
   // Notification States
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
-  // New Post States (Facebook style post box with Media)
+  // New Post States
   const [postContent, setPostContent] = useState("");
   const [postVisibility, setPostVisibility] = useState("public");
   const [postMedia, setPostMedia] = useState(null);
@@ -81,6 +85,24 @@ export default function UserProfilePage() {
   const [inlineBio, setInlineBio] = useState("");
   const [updatingBio, setUpdatingBio] = useState(false);
 
+  // Close profile menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(event.target)
+      ) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
+
   useEffect(() => {
     const fetchCurrentAuthUser = async () => {
       try {
@@ -93,7 +115,6 @@ export default function UserProfilePage() {
     fetchCurrentAuthUser();
   }, []);
 
-  // Fetch Notifications
   useEffect(() => {
     if (currentUserId) {
       API.get("/notifications")
@@ -178,6 +199,7 @@ export default function UserProfilePage() {
       });
       const newImagePath = data.profileImage || data.user?.profileImage;
       setProfileUser((prev) => ({ ...prev, profileImage: newImagePath }));
+      setIsProfileMenuOpen(false);
     } catch (error) {
       console.error("Error uploading profile image:", error);
     } finally {
@@ -307,6 +329,9 @@ export default function UserProfilePage() {
 
   const handleMouseDown = (e) => {
     if (!isRepositioning) return;
+    if (e.type === "touchstart") {
+      e.preventDefault(); // মোবাইলে পেজ স্ক্রল হওয়া রোধ করবে
+    }
     setIsDragging(true);
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     setStartY(clientY);
@@ -314,6 +339,9 @@ export default function UserProfilePage() {
 
   const handleMouseMove = (e) => {
     if (!isDragging || !isRepositioning) return;
+    if (e.type === "touchmove") {
+      e.preventDefault(); // ড্রাগ করার সময় স্ক্রল আটকে রাখবে
+    }
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const deltaY = clientY - startY;
     setCoverPosition((prev) => {
@@ -456,7 +484,6 @@ export default function UserProfilePage() {
                   )}
                 </button>
 
-                {/* Notification Dropdown Menu */}
                 {isNotificationOpen && (
                   <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-fadeIn">
                     <div className="p-3.5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
@@ -531,6 +558,7 @@ export default function UserProfilePage() {
             className={`h-36 sm:h-48 md:h-64 w-full relative bg-gradient-to-r from-emerald-500 to-teal-600 overflow-hidden ${
               isRepositioning ? "cursor-ns-resize" : ""
             }`}
+            style={{ touchAction: isRepositioning ? "none" : "auto" }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleMouseDown}
           >
@@ -557,7 +585,6 @@ export default function UserProfilePage() {
               </div>
             )}
 
-            {/* Action Buttons for Owner */}
             {isOwnProfile && !isRepositioning && (
               <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 flex flex-wrap justify-end items-center gap-2 z-20">
                 <button
@@ -616,39 +643,62 @@ export default function UserProfilePage() {
           {/* Profile Info Section */}
           <div className="px-4 sm:px-6 pb-6 pt-16 sm:pt-6 relative">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 text-center sm:text-left w-full">
-              <div className="absolute -top-12 sm:-top-16 md:-top-20 left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 group w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-md shrink-0 flex items-center justify-center z-20">
-                <img
-                  src={getAvatarUrl(profileUser)}
-                  alt={profileUser.name}
-                  className="w-full h-full object-cover rounded-full"
-                />
-                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition text-white text-[10px] sm:text-xs font-semibold gap-1">
-                  {isOwnProfile && (
-                    <label
-                      htmlFor="profile-image-input"
-                      className="cursor-pointer hover:underline text-center px-1"
-                    >
-                      {uploading ? "Wait..." : "Change"}
-                      <input
-                        id="profile-image-input"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                      />
-                    </label>
-                  )}
-                  {profileUser.profileImage && (
-                    <button
-                      onClick={() =>
-                        setViewImageModal(profileUser.profileImage)
-                      }
-                      className="hover:underline text-emerald-300 flex items-center gap-1 mt-1 cursor-pointer"
-                    >
-                      <Eye size={12} /> View
-                    </button>
-                  )}
+              {/* Profile Picture with Click-to-Toggle Popup Menu (Fixed & Optimized) */}
+              <div
+                className="absolute -top-12 sm:-top-16 md:-top-20 left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 z-40"
+                ref={profileMenuRef}
+              >
+                <div
+                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                  className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-lg relative group cursor-pointer"
+                >
+                  <img
+                    src={getAvatarUrl(profileUser)}
+                    alt={profileUser.name}
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-white">
+                    <Camera size={24} />
+                  </div>
                 </div>
+
+                {/* Dropdown Menu Container */}
+                {isProfileMenuOpen && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden py-1.5 text-left animate-fadeIn">
+                    {profileUser.profileImage && (
+                      <button
+                        onClick={() => {
+                          setViewImageModal(profileUser.profileImage);
+                          setIsProfileMenuOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-xs sm:text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 flex items-center gap-2.5 transition cursor-pointer font-medium border-b border-gray-50"
+                      >
+                        <Eye size={16} /> View Profile Picture
+                      </button>
+                    )}
+
+                    {isOwnProfile && (
+                      <label
+                        htmlFor="profile-image-dropdown-input"
+                        className="w-full px-4 py-3 text-xs sm:text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 flex items-center gap-2.5 transition cursor-pointer font-medium"
+                      >
+                        <Camera size={16} />
+                        <span>
+                          {uploading
+                            ? "Uploading..."
+                            : "Change Profile Picture"}
+                        </span>
+                        <input
+                          id="profile-image-dropdown-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 w-full break-words mt-2 sm:mt-0 sm:ml-32 md:ml-36">
@@ -719,9 +769,8 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Content Grid (About & Posts) */}
+        {/* Content Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* About Widget */}
           <div className="bg-white p-5 shadow-sm rounded-2xl h-fit border border-gray-100">
             <h3 className="font-bold text-lg mb-4 text-gray-800 border-b border-gray-100 pb-2">
               About
@@ -744,7 +793,6 @@ export default function UserProfilePage() {
             </div>
           </div>
 
-          {/* User Posts List & Post Box */}
           <div className="md:col-span-2 space-y-4">
             {isOwnProfile && (
               <div className="bg-white p-4 sm:p-5 shadow-sm rounded-2xl border border-gray-100">

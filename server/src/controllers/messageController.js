@@ -15,13 +15,25 @@ const getConversations = catchAsync(async (req, res) => {
   res.status(200).json(conversations);
 });
 
-// @desc    Get messages of a conversation
+// @desc    Get messages of a conversation & mark them as read
 // @route   GET /api/messages/:conversationId
 // @access  Private
 const getMessages = catchAsync(async (req, res) => {
+  const conversationId = req.params.conversationId;
+
   const messages = await Message.find({
-    conversation: req.params.conversationId,
+    conversation: conversationId,
   }).sort({ createdAt: 1 });
+
+  // Mark incoming messages as read for the logged-in user
+  await Message.updateMany(
+    {
+      conversation: conversationId,
+      sender: { $ne: req.user._id },
+      readStatus: false,
+    },
+    { readStatus: true },
+  );
 
   res.status(200).json(messages);
 });
@@ -58,6 +70,7 @@ const sendMessage = catchAsync(async (req, res) => {
     conversation: convoId,
     sender: req.user._id,
     content,
+    readStatus: false,
   });
 
   await Conversation.findByIdAndUpdate(convoId, {
@@ -68,8 +81,30 @@ const sendMessage = catchAsync(async (req, res) => {
   res.status(201).json(message);
 });
 
+// @desc    Get total unread message count for logged-in user
+// @route   GET /api/messages/unread/count
+// @access  Private
+const getUnreadCount = catchAsync(async (req, res) => {
+  // Find all conversations where the user is a participant
+  const userConversations = await Conversation.find({
+    participants: req.user._id,
+  }).select("_id");
+
+  const conversationIds = userConversations.map((convo) => convo._id);
+
+  // Count messages not sent by the logged-in user and where readStatus is false
+  const unreadCount = await Message.countDocuments({
+    conversation: { $in: conversationIds },
+    sender: { $ne: req.user._id },
+    readStatus: false,
+  });
+
+  res.status(200).json({ unreadCount });
+});
+
 module.exports = {
   getConversations,
   getMessages,
   sendMessage,
+  getUnreadCount,
 };

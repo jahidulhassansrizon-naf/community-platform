@@ -9,6 +9,7 @@ const BACKEND_URL = "https://community-platform-b5wm.onrender.com";
 
 export default function Navbar() {
   const [user, setUser] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -24,6 +25,25 @@ export default function Navbar() {
     };
     fetchUser();
   }, []);
+
+  // Fetch unread message count periodically when user is logged in
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const { data } = await API.get("/messages/unread/count");
+        setUnreadCount(data.unreadCount || 0);
+      } catch (error) {
+        console.error("Error fetching unread messages count:", error);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -83,9 +103,14 @@ export default function Navbar() {
             </Link>
             <Link
               href="/messages"
-              className={`hover:text-emerald-600 transition ${pathname === "/messages" ? "text-emerald-600 font-bold" : ""}`}
+              className={`hover:text-emerald-600 transition flex items-center gap-1.5 relative ${pathname === "/messages" ? "text-emerald-600 font-bold" : ""}`}
             >
               Messages
+              {unreadCount > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-[18px] text-center shadow-sm">
+                  {unreadCount}
+                </span>
+              )}
             </Link>
             <Link
               href="/shop"
@@ -131,7 +156,7 @@ export default function Navbar() {
 
               <button
                 onClick={handleLogout}
-                className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition active:scale-95"
+                className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer"
               >
                 Logout
               </button>
@@ -158,7 +183,7 @@ export default function Navbar() {
         <div className="md:hidden flex items-center">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="text-slate-700 p-2 focus:outline-none"
+            className="text-slate-700 p-2 focus:outline-none cursor-pointer"
           >
             {mobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
           </button>
@@ -194,9 +219,14 @@ export default function Navbar() {
               <Link
                 href="/messages"
                 onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-lg hover:bg-slate-50 ${pathname === "/messages" ? "bg-emerald-50 text-emerald-600 font-bold" : ""}`}
+                className={`px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center justify-between ${pathname === "/messages" ? "bg-emerald-50 text-emerald-600 font-bold" : ""}`}
               >
-                Messages
+                <span>Messages</span>
+                {unreadCount > 0 && (
+                  <span className="bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {unreadCount} new
+                  </span>
+                )}
               </Link>
               <Link
                 href="/shop"
@@ -249,7 +279,7 @@ export default function Navbar() {
                   setMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full bg-rose-500 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm"
+                className="w-full bg-rose-500 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm cursor-pointer"
               >
                 Logout
               </button>

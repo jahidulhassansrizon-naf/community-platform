@@ -183,6 +183,111 @@ exports.loginUser = async (req, res) => {
   }
 };
 
+// 🟡 Forgot Password Logic
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found with this email" });
+    }
+
+    const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
+    if (!GOOGLE_SCRIPT_URL) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Email configuration missing" });
+    }
+
+    const resetOTP = Math.floor(100000 + Math.random() * 900000).toString();
+
+    otpStore.set(email, {
+      otp: resetOTP,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; padding:20px;">
+        <h2>CommunityConnect Password Reset</h2>
+        <p>Hello <b>${user.name}</b>,</p>
+        <p>Your password reset code is:</p>
+        <h1 style="color:red; letter-spacing:5px;">${resetOTP}</h1>
+        <p>This code is valid for 5 minutes.</p>
+      </div>
+    `;
+
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        subject: `${resetOTP} is your Password Reset Code`,
+        html: emailHTML,
+      }),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset code sent to your email successfully!",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 🟡 Reset Password Logic (নতুন যুক্ত করা হলো)
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    const record = otpStore.get(email);
+    if (!record) {
+      return res
+        .status(400)
+        .json({ success: false, message: "OTP expired or not requested!" });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(email);
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "OTP has expired! Please request a new one.",
+        });
+    }
+
+    if (record.otp !== otp.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid OTP code!" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    otpStore.delete(email);
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset successfully! You can now log in.",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.getMe = async (req, res) => {
   res.status(200).json(req.user);
 };

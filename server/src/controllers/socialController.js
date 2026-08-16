@@ -1,0 +1,360 @@
+const SocialPost = require("../models/SocialPost");
+const Connection = require("../models/Connection");
+const Notification = require("../models/Notification");
+
+exports.createPost = async (req, res) => {
+  try {
+    const { content, visibility } = req.body;
+    let imagePath = null;
+    if (req.file) {
+      imagePath =
+        req.file.path ||
+        (req.file.filename ? `/uploads/${req.file.filename}` : null);
+    } else if (req.body.image) {
+      imagePath = req.body.image;
+    }
+
+    if (!content && !imagePath) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Content is required" });
+    }
+
+    const newPost = new SocialPost({
+      author: req.user._id,
+      content: content || "",
+      image: imagePath,
+      visibility: visibility || "public",
+    });
+
+    const savedPost = await newPost.save();
+    const populatedPost = await SocialPost.findById(savedPost._id).populate(
+      "author",
+      "name username profileImage",
+    );
+
+    res.status(201).json({ success: true, post: populatedPost });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getHomeFeed = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const connections = await Connection.find({
+      status: "accepted",
+      $or: [{ sender: currentUserId }, { receiver: currentUserId }],
+    });
+
+    const friendIds = connections.map((conn) =>
+      conn.sender.toString() === currentUserId.toString()
+        ? conn.receiver
+        : conn.sender,
+    );
+
+    const posts = await SocialPost.find({
+      $or: [
+        { visibility: "public" },
+        { author: currentUserId },
+        { author: { $in: friendIds }, visibility: "friends" },
+      ],
+    })
+      .populate("author", "name username profileImage")
+      .populate({
+        path: "sharedPost",
+        populate: { path: "author", select: "name username profileImage" },
+      })
+      .populate({
+        path: "likes.user",
+        select: "name username profileImage",
+      })
+      .populate({
+        path: "comments.user",
+        select: "name username profileImage",
+      })
+      .populate({
+        path: "comments.replies.user",
+        select: "name username profileImage",
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, posts });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.deletePost = async (req, res) => {
+  try {
+    const post = await SocialPost.findById(req.params.id);
+    if (!post) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Post not found" });
+    }
+
+    if (post.author.toString() !== req.user._id.toString()) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized to delete this post",
+      });
+    }
+
+    await post.deleteOne();
+    res
+      .status(200)
+      .json({ success: true, message: "Post removed successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.updatePost = async (req, res) => {
+  try {
+    const { content, visibility } = req.body;
+    const post = await SocialPost.findById(req.params.id);
+
+    if (!post) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Post not found" });
+    }
+
+    if (post.author.toString() !== req.user._id.toString()) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized to update this post",
+      });
+    }
+
+    let imagePath = post.image;
+    if (req.file) {
+      imagePath =
+        req.file.path ||
+        (req.file.filename ? `/uploads/${req.file.filename}` : post.image);
+    } else if (req.body.image !== undefined) {
+      imagePath = req.body.image;
+    }
+
+    post.content = content !== undefined ? content : post.content;
+    post.image = imagePath;
+    post.visibility = visibility || post.visibility;
+
+    const updatedPost = await post.save();
+    const populatedPost = await SocialPost.findById(updatedPost._id).populate(
+      "author",
+      "name username profileImage",
+    );
+
+    res.status(200).json({ success: true, post: populatedPost });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// টগল রিঅ্যাক্ট এবং নোটিফিকেশন জেনারেট করা
+exports.toggleReaction = async (req, res) => {
+  try {
+    const { reaction } = req.body;
+    const postId = req.params.postId;
+    const userId = req.user._id;
+
+    const post = await SocialPost.findById(postId);
+    if (!post) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Post not found" });
+    }
+
+    const existingReactionIndex = post.likes.findIndex(
+      (l) => l.user.toString() === userId.toString(),
+    );
+
+    let isNewReaction = false;
+    if (existingReactionIndex > -1) {
+      if (post.likes[existingReactionIndex].reaction === reaction) {
+        post.likes.splice(existingReactionIndex, 1);
+      } else {
+        post.likes[existingReactionIndex].reaction = reaction || "like";
+        isNewReaction = true;
+      }
+    } else {
+      post.likes.push({
+        user: userId,
+        reaction: reaction || "like",
+      });
+      isNewReaction = true;
+    }
+
+    await post.save();
+
+    // যদি অন্য কেউ রিঅ্যাক্ট দেয়, তবে পোস্টের মালিককে নোটিফিকেশন পাঠানো
+    if (isNewReaction && post.author.toString() !== userId.toString()) {
+      await Notification.create({
+        recipient: post.author,
+        sender: userId,
+        post: post._id,
+        type: "LIKE",
+        message: `Your post has received a new reaction (${reaction || "like"}).`,
+      });
+    }
+
+    const updatedPost = await SocialPost.findById(postId).populate({
+      path: "likes.user",
+      select: "name username profileImage",
+    });
+
+    res.status(200).json({ success: true, likes: updatedPost.likes });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// কমেন্ট করা এবং নোটিফিকেশন জেনারেট করা
+exports.addComment = async (req, res) => {
+  try {
+    const { text } = req.body;
+    const postId = req.params.postId;
+    const userId = req.user._id;
+
+    if (!text || !text.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Comment text is required" });
+    }
+
+    const post = await SocialPost.findById(postId);
+    if (!post) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Post not found" });
+    }
+
+    const newComment = {
+      user: userId,
+      text: text.trim(),
+      createdAt: new Date(),
+    };
+
+    post.comments.push(newComment);
+    await post.save();
+
+    // যদি অন্য কেউ কমেন্ট করে, তবে পোস্টের মালিককে নোটিফিকেশন পাঠানো
+    if (post.author.toString() !== userId.toString()) {
+      await Notification.create({
+        recipient: post.author,
+        sender: userId,
+        post: post._id,
+        type: "COMMENT",
+        message: `commented on your post: "${text.substring(0, 30)}..."`,
+      });
+    }
+
+    const updatedPost = await SocialPost.findById(postId)
+      .populate("comments.user", "name username profileImage")
+      .populate("comments.replies.user", "name username profileImage");
+
+    res.status(200).json({ success: true, comments: updatedPost.comments });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// কমেন্টের রিপ্লাই বা সাব-কমেন্ট যোগ করার ফাংশন
+exports.addCommentReply = async (req, res) => {
+  try {
+    const { text } = req.body;
+    const { postId, commentId } = req.params;
+    const userId = req.user._id;
+
+    if (!text || !text.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Reply text is required" });
+    }
+
+    const post = await SocialPost.findById(postId);
+    if (!post) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Post not found" });
+    }
+
+    const comment = post.comments.id(commentId);
+    if (!comment) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Comment not found" });
+    }
+
+    comment.replies.push({
+      user: userId,
+      text: text.trim(),
+      createdAt: new Date(),
+    });
+
+    await post.save();
+
+    const updatedPost = await SocialPost.findById(postId)
+      .populate("comments.user", "name username profileImage")
+      .populate("comments.replies.user", "name username profileImage");
+
+    res.status(200).json({ success: true, comments: updatedPost.comments });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// পোস্ট নিজের ফিডে শেয়ার (Repost) করার ফাংশন
+exports.sharePost = async (req, res) => {
+  try {
+    const postId = req.params.postId;
+    const userId = req.user._id;
+
+    const originalPost = await SocialPost.findById(postId);
+    if (!originalPost) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Original post not found" });
+    }
+
+    // নতুন পোস্ট তৈরি যা বর্তমান ইউজারের ফিডে দেখাবে
+    const sharedPost = new SocialPost({
+      author: userId,
+      content: originalPost.content,
+      image: originalPost.image,
+      visibility: "public",
+      isShared: true,
+      sharedPost: originalPost._id,
+    });
+
+    const savedPost = await sharedPost.save();
+
+    const populatedPost = await SocialPost.findById(savedPost._id)
+      .populate("author", "name username profileImage")
+      .populate({
+        path: "sharedPost",
+        populate: { path: "author", select: "name username profileImage" },
+      });
+
+    // চাইলে মূল পোস্টের মালিককে নোটিফিকেশন পাঠাতে পারেন
+    if (originalPost.author.toString() !== userId.toString()) {
+      await Notification.create({
+        recipient: originalPost.author,
+        sender: userId,
+        post: originalPost._id,
+        type: "SHARE",
+        message: `shared your post.`,
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Post shared to your feed successfully!",
+      post: populatedPost,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

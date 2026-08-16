@@ -11,9 +11,22 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    post: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SocialPost", // সোশ্যাল পোস্টের সাথে কানেক্ট করার জন্য
+    },
     type: {
       type: String,
-      enum: ["MATCH", "MESSAGE", "ADMIN", "RESOLVED", "SYSTEM"],
+      enum: [
+        "MATCH",
+        "MESSAGE",
+        "ADMIN",
+        "RESOLVED",
+        "SYSTEM",
+        "LIKE",
+        "COMMENT",
+        "SHARE", // <--- এখানে "SHARE" যোগ করা হলো
+      ],
       required: true,
     },
     message: {

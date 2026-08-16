@@ -1,6 +1,7 @@
 const User = require("../models/User");
-const Post = require("../models/Post");
+const SocialPost = require("../models/SocialPost");
 const { catchAsync } = require("../middlewares/errorMiddleware");
+const bcrypt = require("bcryptjs");
 
 const getUserProfile = catchAsync(async (req, res) => {
   const user = await User.findOne({ username: req.params.username }).select(
@@ -12,7 +13,19 @@ const getUserProfile = catchAsync(async (req, res) => {
     throw new Error("User not found");
   }
 
-  const posts = await Post.find({ author: user._id }).sort({ createdAt: -1 });
+  const posts = await SocialPost.find({ author: user._id })
+    .populate("author", "name username profileImage")
+    .populate({
+      path: "comments.user",
+      select: "name username profileImage",
+    })
+    .populate({
+      path: "comments.replies.user",
+      select: "name username profileImage",
+    })
+    .sort({
+      createdAt: -1,
+    });
 
   res.status(200).json({
     user,
@@ -42,8 +55,46 @@ const updateProfileImage = catchAsync(async (req, res) => {
   });
 });
 
+const updateCoverImage = catchAsync(async (req, res) => {
+  let imagePath = "";
+
+  if (req.file) {
+    imagePath = req.file.path;
+  } else if (req.body.coverImage) {
+    imagePath = req.body.coverImage;
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    { coverImage: imagePath },
+    { new: true },
+  ).select("-password");
+
+  res.status(200).json({
+    success: true,
+    coverImage: updatedUser.coverImage,
+    user: updatedUser,
+  });
+});
+
+const updateCoverPosition = catchAsync(async (req, res) => {
+  const { coverPosition } = req.body;
+
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    { coverPosition },
+    { new: true },
+  ).select("-password");
+
+  res.status(200).json({
+    success: true,
+    message: "Cover position updated successfully",
+    user: updatedUser,
+  });
+});
+
 const updateProfile = catchAsync(async (req, res) => {
-  const { name, username } = req.body;
+  const { name, username, bio } = req.body;
 
   const user = await User.findById(req.user._id);
 
@@ -54,6 +105,7 @@ const updateProfile = catchAsync(async (req, res) => {
 
   user.name = name || user.name;
   user.username = username || user.username;
+  user.bio = bio !== undefined ? bio : user.bio;
 
   const updatedUser = await user.save();
 
@@ -61,6 +113,36 @@ const updateProfile = catchAsync(async (req, res) => {
     success: true,
     message: "Profile updated successfully",
     user: updatedUser,
+  });
+});
+
+const changePassword = catchAsync(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await User.findById(req.user._id).select("+password");
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  const isMatch = (await user.matchPassword)
+    ? await user.matchPassword(oldPassword)
+    : await bcrypt.compare(oldPassword, user.password);
+
+  if (!isMatch) {
+    res.status(400);
+    throw new Error("Current password is incorrect");
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  user.password = await bcrypt.hash(newPassword, salt);
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Password changed successfully",
   });
 });
 
@@ -90,7 +172,10 @@ const deleteUser = catchAsync(async (req, res) => {
 module.exports = {
   getUserProfile,
   updateProfileImage,
+  updateCoverImage,
+  updateCoverPosition,
   updateProfile,
+  changePassword,
   getAllUsers,
   deleteUser,
 };

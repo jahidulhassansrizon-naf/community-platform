@@ -21,6 +21,8 @@ const cartRoutes = require("./src/routes/cartRoutes");
 const shopRoutes = require("./src/routes/shopRoutes");
 const orderRoutes = require("./src/routes/orderRoutes");
 const orderMessageRoutes = require("./src/routes/orderMessageRoutes");
+const socialRoutes = require("./src/routes/socialRoutes");
+const notificationRoutes = require("./src/routes/notificationRoutes"); // নোটিফিকেশন রাউট ইম্পোর্ট করা হলো
 
 app.use("/api/order-messages", orderMessageRoutes);
 
@@ -32,6 +34,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/shop", shopRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/social", socialRoutes);
+app.use("/api/notifications", notificationRoutes); // নোটিফিকেশন রাউট রেজিস্টার করা হলো
 
 app.get("/", (req, res) => {
   res.json({

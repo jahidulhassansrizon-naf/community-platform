@@ -12,11 +12,15 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "community_profiles", // Cloudinary-তে যে ফোল্ডারে ছবি জমা হবে
-    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+    folder: "community_profiles", // Cloudinary-তে যে ফোল্ডারে ফাইল জমা হবে
+    allowed_formats: ["jpg", "png", "jpeg", "webp", "mp4", "mov", "avi", "mkv"], // ইমেজ ও ভিডিও ফরম্যাটগুলো যুক্ত করা হলো
+    resource_type: "auto", // ইমেজ এবং ভিডিও উভয় ফাইল টাইপ হ্যান্ডেল করার জন্য
   },
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // ফাইলের সাইজ লিমিট বাড়িয়ে ৫০ এমবি করা হলো (দরকার হলে আরও বাড়াতে পারেন)
+});
 
 module.exports = upload;

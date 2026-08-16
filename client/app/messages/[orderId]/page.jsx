@@ -124,7 +124,7 @@ export default function OrderChatPage() {
           </div>
           <button
             onClick={() => router.back()}
-            className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition"
+            className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition cursor-pointer"
           >
             ← Back
           </button>
@@ -191,7 +191,7 @@ export default function OrderChatPage() {
             />
             <button
               type="submit"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-3 rounded-xl transition shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-3 rounded-xl transition shadow-sm cursor-pointer"
             >
               Send
             </button>

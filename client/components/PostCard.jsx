@@ -38,11 +38,10 @@ export default function PostCard({
   const [activeReplyBoxes, setActiveReplyBoxes] = useState({});
   const [replyTexts, setReplyTexts] = useState({});
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [hoveredReaction, setHoveredReaction] = useState(null);
 
-  // হোভার ডিলে করার জন্য টাইমার রেফারেন্স
   const hoverTimeoutRef = useRef(null);
-
-  // কমেন্ট সেকশন বা ইনপুট ফিল্ডে ফোকাস করার জন্য রেফ
+  const longPressTimerRef = useRef(null);
   const commentInputRef = useRef(null);
 
   const scrollToCommentBox = () => {
@@ -83,24 +82,64 @@ export default function PostCard({
       });
       onUpdatePostsList(post._id, { likes: data.likes });
       setActiveReactionPicker(false);
+      setHoveredReaction(null);
     } catch (error) {
       console.error("Error reacting to post:", error);
     }
   };
 
-  // মাউস হোভার হ্যান্ডলার (পিসির জন্য)
   const handleMouseEnter = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
       setActiveReactionPicker(true);
-    }, 250); // সামান্য ডিলে যাতে স্মুথ থাকে
+    }, 250);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
       setActiveReactionPicker(false);
+      setHoveredReaction(null);
     }, 300);
+  };
+
+  // মোবাইলের জন্য লং প্রেস হ্যান্ডলার
+  const handleTouchStart = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+
+    longPressTimerRef.current = setTimeout(() => {
+      setActiveReactionPicker(true);
+      if (navigator.vibrate) navigator.vibrate(70);
+    }, 350);
+  };
+
+  // স্ক্রল প্রিভেন্ট করার জন্য e.preventDefault() যুক্ত টাচ মুভ
+  const handleTouchMove = (e) => {
+    if (activeReactionPicker) {
+      e.preventDefault();
+    }
+
+    const touch = e.touches[0];
+    const targetElement = document.elementFromPoint(
+      touch.clientX,
+      touch.clientY,
+    );
+
+    if (targetElement && targetElement.dataset.reactionKey) {
+      setHoveredReaction(targetElement.dataset.reactionKey);
+    } else {
+      setHoveredReaction(null);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    if (activeReactionPicker && hoveredReaction) {
+      handleReaction(hoveredReaction);
+    }
   };
 
   const handleAddComment = async (e) => {
@@ -278,7 +317,7 @@ export default function PostCard({
         </div>
       )}
 
-      {/* Reactions Bar with Facebook-like Hover & Click Effect */}
+      {/* Reactions Bar with Facebook-style Smooth Animated & Touch Drag Effect */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-gray-600 relative">
         <div
           className="relative"
@@ -286,31 +325,48 @@ export default function PostCard({
           onMouseLeave={handleMouseLeave}
         >
           {activeReactionPicker && (
-            <div className="absolute -top-14 left-0 bg-white shadow-2xl border border-gray-100 rounded-full px-3 py-1.5 flex items-center gap-2.5 z-30 animate-fadeIn">
-              {Object.entries(reactionConfig).map(([key, config]) => (
-                <button
-                  key={key}
-                  onClick={() => handleReaction(key)}
-                  className="hover:scale-125 transition text-xl cursor-pointer"
-                  title={config.label}
-                >
-                  {config.emoji}
-                </button>
-              ))}
+            <div className="absolute -top-16 left-0 bg-white shadow-2xl border border-gray-100 rounded-full px-3 py-2 flex items-center gap-3 z-30 transition-all duration-300 transform scale-100 origin-bottom-left select-none">
+              {Object.entries(reactionConfig).map(([key, config]) => {
+                const isHovered = hoveredReaction === key;
+                return (
+                  <button
+                    key={key}
+                    data-reaction-key={key}
+                    onMouseEnter={() => setHoveredReaction(key)}
+                    onMouseLeave={() => setHoveredReaction(null)}
+                    onClick={() => handleReaction(key)}
+                    className={`transition-all duration-200 cursor-pointer text-2xl relative group ${
+                      isHovered
+                        ? "scale-150 -translate-y-3 z-40"
+                        : "hover:scale-125"
+                    }`}
+                    title={config.label}
+                  >
+                    {isHovered && (
+                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                        {config.label}
+                      </span>
+                    )}
+                    {config.emoji}
+                  </button>
+                );
+              })}
             </div>
           )}
 
           <button
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             onClick={() => {
-              // মোবাইলের জন্য ট্যাপ করলে সরাসরি টগল হবে অথবা ডিফল্ট লাইক পড়বে
-              if (currentReactionType) {
-                handleReaction("like"); // অলরেডি রিঅ্যাক্ট করা থাকলে রিমুভ বা লাইক টগল হবে
+              if (!activeReactionPicker) {
+                handleReaction("like");
               } else {
-                setActiveReactionPicker(!activeReactionPicker);
+                setActiveReactionPicker(false);
               }
             }}
             onDoubleClick={() => handleReaction("like")}
-            className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium transition py-1 cursor-pointer ${currentConfig.color}`}
+            className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium transition py-1 cursor-pointer select-none ${currentConfig.color}`}
           >
             <span className="text-base">{currentConfig.emoji}</span>
             <span>{currentConfig.label}</span>

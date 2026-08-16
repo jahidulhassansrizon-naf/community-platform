@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Navbar from "../components/navbar/Navbar";
 import { useAuth } from "../context/AuthContext";
 import API from "../services/api";
-import PostCard from "../components/PostCard"; // PostCard কম্পোনেন্টটি ইমপোর্ট করা হলো
+import PostCard from "../components/PostCard";
 
 const BACKEND_URL = "https://community-platform-b5wm.onrender.com";
 
@@ -72,7 +72,8 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-emerald-500 selection:text-white">
       <Navbar />
 
-      <main className="flex-grow max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-4">
+      {/* touch-action এবং overscroll-behavior যুক্ত করা হলো যাতে মোবাইল রিঅ্যাক্ট ড্র্যাগ করার সময় পেজ স্ক্রল না করে */}
+      <main className="flex-grow max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-4 touch-pan-y overscroll-y-contain">
         <h3 className="font-bold text-xl text-slate-800 px-1 border-b border-slate-200 pb-2">
           Community Public Feed
         </h3>

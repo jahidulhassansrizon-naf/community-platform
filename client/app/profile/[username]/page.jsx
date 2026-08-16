@@ -330,7 +330,7 @@ export default function UserProfilePage() {
   const handleMouseDown = (e) => {
     if (!isRepositioning) return;
     if (e.type === "touchstart") {
-      e.preventDefault(); // মোবাইলে পেজ স্ক্রল হওয়া রোধ করবে
+      e.preventDefault();
     }
     setIsDragging(true);
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -340,7 +340,7 @@ export default function UserProfilePage() {
   const handleMouseMove = (e) => {
     if (!isDragging || !isRepositioning) return;
     if (e.type === "touchmove") {
-      e.preventDefault(); // ড্রাগ করার সময় স্ক্রল আটকে রাখবে
+      e.preventDefault();
     }
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const deltaY = clientY - startY;
@@ -445,8 +445,9 @@ export default function UserProfilePage() {
   const isOwnProfile = currentUserId && profileUser._id === currentUserId;
 
   return (
+    /* touch-pan-y এবং overscroll-y-contain যোগ করা হলো যাতে রিঅ্যাক্ট করার সময় পেজ স্ক্রল না করে */
     <div
-      className="min-h-screen bg-gray-50 pb-12 select-none"
+      className="min-h-screen bg-gray-50 pb-12 select-none touch-pan-y overscroll-y-contain"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onTouchMove={handleMouseMove}
@@ -643,7 +644,7 @@ export default function UserProfilePage() {
           {/* Profile Info Section */}
           <div className="px-4 sm:px-6 pb-6 pt-16 sm:pt-6 relative">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 text-center sm:text-left w-full">
-              {/* Profile Picture with Click-to-Toggle Popup Menu (Fixed & Optimized) */}
+              {/* Profile Picture with Click-to-Toggle Popup Menu */}
               <div
                 className="absolute -top-12 sm:-top-16 md:-top-20 left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 z-40"
                 ref={profileMenuRef}

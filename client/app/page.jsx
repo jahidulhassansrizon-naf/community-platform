@@ -23,13 +23,6 @@ export default function Home() {
   const [feedPosts, setFeedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Interaction States
-  const [activeReactionPicker, setActiveReactionPicker] = useState(null);
-  const [commentTexts, setCommentTexts] = useState({});
-  const [commentSorts, setCommentSorts] = useState({});
-  const [activeReplyBox, setActiveReplyBox] = useState({});
-  const [replyTexts, setReplyTexts] = useState({});
-
   useEffect(() => {
     const fetchFeed = async () => {
       try {
@@ -75,79 +68,6 @@ export default function Home() {
     );
   };
 
-  // Reaction Handler
-  const handleReaction = async (postId, reactionType = "like") => {
-    try {
-      const { data } = await API.put(`/social/like/${postId}`, {
-        reaction: reactionType,
-      });
-      setFeedPosts(
-        feedPosts.map((post) =>
-          post._id === postId ? { ...post, likes: data.likes } : post,
-        ),
-      );
-      setActiveReactionPicker(null);
-    } catch (error) {
-      console.error("Error reacting to post:", error);
-    }
-  };
-
-  // Add Comment Handler
-  const handleAddComment = async (e, postId) => {
-    e.preventDefault();
-    const text = commentTexts[postId] || "";
-    if (!text.trim()) return;
-    try {
-      const { data } = await API.post(`/social/comment/${postId}`, { text });
-      setFeedPosts(
-        feedPosts.map((post) =>
-          post._id === postId ? { ...post, comments: data.comments } : post,
-        ),
-      );
-      setCommentTexts({ ...commentTexts, [postId]: "" });
-    } catch (error) {
-      console.error("Error adding comment:", error);
-    }
-  };
-
-  // Add Reply Handler
-  const handleAddReply = async (postId, commentId) => {
-    const text = replyTexts[commentId] || "";
-    if (!text.trim()) return;
-    try {
-      const { data } = await API.post(
-        `/social/comment/${postId}/${commentId}/reply`,
-        { text },
-      );
-      setFeedPosts(
-        feedPosts.map((post) =>
-          post._id === postId ? { ...post, comments: data.comments } : post,
-        ),
-      );
-      setReplyTexts({ ...replyTexts, [commentId]: "" });
-      setActiveReplyBox((prev) => ({ ...prev, [commentId]: false }));
-    } catch (error) {
-      console.error("Error adding reply:", error);
-      alert(error.response?.data?.message || "Failed to add reply");
-    }
-  };
-
-  // Share Handler
-  const handleShare = (post) => {
-    if (navigator.share) {
-      navigator
-        .share({
-          title: `Post by ${post.author?.name || "User"}`,
-          text: post.content,
-          url: window.location.href,
-        })
-        .catch((err) => console.log(err));
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert("Post link copied to clipboard!");
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-emerald-500 selection:text-white">
       <Navbar />
@@ -171,24 +91,13 @@ export default function Home() {
               key={post._id}
               post={post}
               currentUserId={currentUserId}
-              reactionConfig={reactionConfig}
-              activeReactionPicker={activeReactionPicker}
-              setActiveReactionPicker={setActiveReactionPicker}
-              commentTexts={commentTexts}
-              setCommentTexts={setCommentTexts}
-              commentSorts={commentSorts}
-              setCommentSorts={setCommentSorts}
-              activeReplyBox={activeReplyBox}
-              setActiveReplyBox={setActiveReplyBox}
-              replyTexts={replyTexts}
-              setReplyTexts={setReplyTexts}
-              handleReaction={handleReaction}
-              handleAddComment={handleAddComment}
-              handleAddReply={handleAddReply}
-              handleShare={handleShare}
-              getImageUrl={getImageUrl}
-              getAvatarUrl={getAvatarUrl}
-              isVideoFile={isVideoFile}
+              onUpdatePostsList={(postId, updatedData) => {
+                setFeedPosts(
+                  feedPosts.map((p) =>
+                    p._id === postId ? { ...p, ...updatedData } : p,
+                  ),
+                );
+              }}
             />
           ))
         )}

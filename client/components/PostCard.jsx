@@ -39,6 +39,9 @@ export default function PostCard({
   const [replyTexts, setReplyTexts] = useState({});
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
+  // হোভার ডিলে করার জন্য টাইমার রেফারেন্স
+  const hoverTimeoutRef = useRef(null);
+
   // কমেন্ট সেকশন বা ইনপুট ফিল্ডে ফোকাস করার জন্য রেফ
   const commentInputRef = useRef(null);
 
@@ -85,6 +88,21 @@ export default function PostCard({
     }
   };
 
+  // মাউস হোভার হ্যান্ডলার (পিসির জন্য)
+  const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setActiveReactionPicker(true);
+    }, 250); // সামান্য ডিলে যাতে স্মুথ থাকে
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setActiveReactionPicker(false);
+    }, 300);
+  };
+
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!commentText.trim()) return;
@@ -128,7 +146,6 @@ export default function PostCard({
 
   return (
     <div className="bg-white p-4 sm:p-5 shadow-sm rounded-2xl border border-gray-100 hover:shadow-md transition space-y-3">
-      {/* যদি পোস্টটি শেয়ার করা হয় (Repost), তবে ওপরের দিকে শেয়ার করার ইন্ডিকেটর */}
       {post.isShared && (
         <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50/60 px-3 py-1.5 rounded-xl border border-emerald-100">
           <Repeat size={14} />
@@ -136,7 +153,6 @@ export default function PostCard({
         </div>
       )}
 
-      {/* Main Author (Who shared or created the post) */}
       {post.author && (
         <div className="flex items-center justify-between pb-2 border-b border-gray-50">
           <Link
@@ -188,7 +204,6 @@ export default function PostCard({
         )}
       </div>
 
-      {/* যদি সাধারণ পোস্ট হয় অথবা শেয়ার করা পোস্টের ভেতরের মূল কন্টেন্ট */}
       {!post.isShared ? (
         <>
           {post.content && (
@@ -217,7 +232,6 @@ export default function PostCard({
           )}
         </>
       ) : (
-        /* ফেসবুকের মতো শেয়ার করা পোস্টের ভেতরের মূল লেখকের বক্স (Embedded Original Post) */
         <div className="border border-gray-200 rounded-2xl p-3.5 bg-gray-50/50 space-y-3">
           {post.sharedPost?.author && (
             <div className="flex items-center gap-2.5">
@@ -264,9 +278,13 @@ export default function PostCard({
         </div>
       )}
 
-      {/* Reactions Bar */}
+      {/* Reactions Bar with Facebook-like Hover & Click Effect */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-gray-600 relative">
-        <div className="relative">
+        <div
+          className="relative"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
           {activeReactionPicker && (
             <div className="absolute -top-14 left-0 bg-white shadow-2xl border border-gray-100 rounded-full px-3 py-1.5 flex items-center gap-2.5 z-30 animate-fadeIn">
               {Object.entries(reactionConfig).map(([key, config]) => (
@@ -283,7 +301,15 @@ export default function PostCard({
           )}
 
           <button
-            onClick={() => setActiveReactionPicker(!activeReactionPicker)}
+            onClick={() => {
+              // মোবাইলের জন্য ট্যাপ করলে সরাসরি টগল হবে অথবা ডিফল্ট লাইক পড়বে
+              if (currentReactionType) {
+                handleReaction("like"); // অলরেডি রিঅ্যাক্ট করা থাকলে রিমুভ বা লাইক টগল হবে
+              } else {
+                setActiveReactionPicker(!activeReactionPicker);
+              }
+            }}
+            onDoubleClick={() => handleReaction("like")}
             className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium transition py-1 cursor-pointer ${currentConfig.color}`}
           >
             <span className="text-base">{currentConfig.emoji}</span>
@@ -294,7 +320,6 @@ export default function PostCard({
           </button>
         </div>
 
-        {/* এখানে ক্লিক করলে কমেন্ট বক্সে স্ক্রল ও ফোকাস হবে */}
         <button
           onClick={scrollToCommentBox}
           className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-gray-600 hover:text-emerald-600 transition cursor-pointer"
@@ -330,7 +355,7 @@ export default function PostCard({
 
         <form onSubmit={handleAddComment} className="flex gap-2 items-center">
           <input
-            ref={commentInputRef} // ইনপুট ফিল্ডের সাথে রেফ যুক্ত করা হলো
+            ref={commentInputRef}
             type="text"
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
@@ -451,7 +476,6 @@ export default function PostCard({
         </div>
       </div>
 
-      {/* Share Modal Component */}
       <ShareModal
         post={post}
         isOpen={isShareModalOpen}

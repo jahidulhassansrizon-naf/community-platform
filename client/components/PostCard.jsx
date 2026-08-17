@@ -103,32 +103,28 @@ export default function PostCard({
     }, 300);
   };
 
-  // মোবাইলের জন্য লং প্রেস হ্যান্ডলার
-  const handleTouchStart = () => {
+  // মোবাইলের জন্য অপ্টিমাইজড লং প্রেস হ্যান্ডলার
+  const handleTouchStart = (e) => {
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
 
     longPressTimerRef.current = setTimeout(() => {
       setActiveReactionPicker(true);
       if (navigator.vibrate) navigator.vibrate(70);
-    }, 350);
+    }, 250);
   };
 
-  // স্ক্রল প্রিভেন্ট করার জন্য e.preventDefault() যুক্ত টাচ মুভ
+  // স্ক্রল ও রিয়েকশন সিলেকশন নিরাপদ করার টাচ মুভ হ্যান্ডলার
   const handleTouchMove = (e) => {
-    if (activeReactionPicker) {
-      e.preventDefault();
-    }
-
+    if (!e.touches || e.touches.length === 0) return;
     const touch = e.touches[0];
     const targetElement = document.elementFromPoint(
       touch.clientX,
       touch.clientY,
     );
 
-    if (targetElement && targetElement.dataset.reactionKey) {
-      setHoveredReaction(targetElement.dataset.reactionKey);
-    } else {
-      setHoveredReaction(null);
+    const reactionBtn = targetElement?.closest("[data-reaction-key]");
+    if (reactionBtn) {
+      setHoveredReaction(reactionBtn.dataset.reactionKey);
     }
   };
 
@@ -137,8 +133,16 @@ export default function PostCard({
       clearTimeout(longPressTimerRef.current);
     }
 
-    if (activeReactionPicker && hoveredReaction) {
-      handleReaction(hoveredReaction);
+    if (activeReactionPicker) {
+      if (hoveredReaction) {
+        handleReaction(hoveredReaction);
+      }
+    }
+  };
+
+  const handleTouchCancel = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
     }
   };
 
@@ -317,7 +321,7 @@ export default function PostCard({
         </div>
       )}
 
-      {/* Reactions Bar with Facebook-style Smooth Animated & Touch Drag Effect */}
+      {/* Reactions Bar */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-gray-600 relative">
         <div
           className="relative"
@@ -358,6 +362,7 @@ export default function PostCard({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
             onClick={() => {
               if (!activeReactionPicker) {
                 handleReaction("like");

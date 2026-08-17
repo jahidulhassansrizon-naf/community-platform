@@ -3,25 +3,7 @@ const SocialPost = require("../models/SocialPost");
 const Connection = require("../models/Connection");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
-
-// রিকার্সিভ ফাংশন যা কমেন্টস এবং সব নেস্টেড রিপ্লাইয়ের ইউজার আইডিকে পপুলেট করবে
-async function populateCommentsRecursively(comments) {
-  if (!comments || comments.length === 0) return comments;
-
-  for (let comment of comments) {
-    if (comment.user && !comment.user.name) {
-      const userDoc = await User.findById(comment.user).select(
-        "name username profileImage",
-      );
-      if (userDoc) comment.user = userDoc;
-    }
-
-    if (comment.replies && comment.replies.length > 0) {
-      await populateCommentsRecursively(comment.replies);
-    }
-  }
-  return comments;
-}
+const { populateCommentsRecursively } = require("../utils/commentHelper");
 
 exports.createPost = async (req, res) => {
   try {
@@ -249,7 +231,7 @@ exports.addComment = async (req, res) => {
     }
 
     const newComment = {
-      _id: new mongoose.Types.ObjectId(), // ইউনিক _id জেনারেশন
+      _id: new mongoose.Types.ObjectId(),
       user: userId,
       text: text.trim(),
       replies: [],
@@ -280,7 +262,6 @@ exports.addComment = async (req, res) => {
   }
 };
 
-// সুনির্দিষ্ট রিকার্সিভ ফাংশন যা যেকোনো গভীরতার রিপ্লাই খুঁজে বের করে নতুন রিপ্লাই যুক্ত করবে
 const addReplyRecursive = (items, targetId, replyData) => {
   if (!items || !Array.isArray(items)) return false;
 
@@ -319,7 +300,6 @@ exports.addNestedReply = async (req, res) => {
         .json({ success: false, message: "Post not found" });
     }
 
-    // প্রতিটা সাব-রিপ্লাইয়ের জন্য নতুন এবং নিশ্চিত unique _id জেনারেট করা হলো
     const newReply = {
       _id: new mongoose.Types.ObjectId(),
       user: userId,
@@ -350,9 +330,7 @@ exports.addNestedReply = async (req, res) => {
         .json({ success: false, message: "Target comment or reply not found" });
     }
 
-    // নেস্টেড সাবডকুমেন্ট বা অ্যারে পরিবর্তনের পর মঙ্গুজকে মার্ক করা হলো
     post.markModified("comments");
-
     await post.save();
 
     let updatedPost = await SocialPost.findById(postId).lean();

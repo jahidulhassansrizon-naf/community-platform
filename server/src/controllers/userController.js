@@ -2,25 +2,7 @@ const User = require("../models/User");
 const SocialPost = require("../models/SocialPost");
 const { catchAsync } = require("../middlewares/errorMiddleware");
 const bcrypt = require("bcryptjs");
-
-// রিকার্সিভ ফাংশন যা প্রোফাইল পেজের কমেন্টস এবং সব নেস্টেড রিপ্লাইয়ের ইউজার আইডি পপুলেট করবে
-async function populateCommentsRecursively(comments) {
-  if (!comments || comments.length === 0) return comments;
-
-  for (let comment of comments) {
-    if (comment.user && !comment.user.name) {
-      const userDoc = await User.findById(comment.user).select(
-        "name username profileImage",
-      );
-      if (userDoc) comment.user = userDoc;
-    }
-
-    if (comment.replies && comment.replies.length > 0) {
-      await populateCommentsRecursively(comment.replies);
-    }
-  }
-  return comments;
-}
+const { populateCommentsRecursively } = require("../utils/commentHelper");
 
 const getUserProfile = catchAsync(async (req, res) => {
   const user = await User.findOne({ username: req.params.username }).select(
@@ -43,7 +25,6 @@ const getUserProfile = catchAsync(async (req, res) => {
     })
     .lean();
 
-  // প্রতিটা পোস্টের সব কমেন্ট ও নেস্টেড রিপ্লাই পপুলেট করা হলো
   for (let post of posts) {
     if (post.comments && post.comments.length > 0) {
       post.comments = await populateCommentsRecursively(post.comments);

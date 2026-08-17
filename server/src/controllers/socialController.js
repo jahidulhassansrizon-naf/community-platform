@@ -1,6 +1,27 @@
+const mongoose = require("mongoose");
 const SocialPost = require("../models/SocialPost");
 const Connection = require("../models/Connection");
 const Notification = require("../models/Notification");
+const User = require("../models/User");
+
+// রিকার্সিভ ফাংশন যা কমেন্টস এবং সব নেস্টেড রিপ্লাইয়ের ইউজার আইডিকে পপুলেট করবে
+async function populateCommentsRecursively(comments) {
+  if (!comments || comments.length === 0) return comments;
+
+  for (let comment of comments) {
+    if (comment.user && !comment.user.name) {
+      const userDoc = await User.findById(comment.user).select(
+        "name username profileImage",
+      );
+      if (userDoc) comment.user = userDoc;
+    }
+
+    if (comment.replies && comment.replies.length > 0) {
+      await populateCommentsRecursively(comment.replies);
+    }
+  }
+  return comments;
+}
 
 exports.createPost = async (req, res) => {
   try {
@@ -53,7 +74,7 @@ exports.getHomeFeed = async (req, res) => {
         : conn.sender,
     );
 
-    const posts = await SocialPost.find({
+    let posts = await SocialPost.find({
       $or: [
         { visibility: "public" },
         { author: currentUserId },
@@ -69,15 +90,14 @@ exports.getHomeFeed = async (req, res) => {
         path: "likes.user",
         select: "name username profileImage",
       })
-      .populate({
-        path: "comments.user",
-        select: "name username profileImage",
-      })
-      .populate({
-        path: "comments.replies.user",
-        select: "name username profileImage",
-      })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+
+    for (let post of posts) {
+      if (post.comments && post.comments.length > 0) {
+        post.comments = await populateCommentsRecursively(post.comments);
+      }
+    }
 
     res.status(200).json({ success: true, posts });
   } catch (error) {
@@ -153,7 +173,6 @@ exports.updatePost = async (req, res) => {
   }
 };
 
-// টগল রিঅ্যাক্ট এবং নোটিফিকেশন জেনারেট করা
 exports.toggleReaction = async (req, res) => {
   try {
     const { reaction } = req.body;
@@ -189,7 +208,6 @@ exports.toggleReaction = async (req, res) => {
 
     await post.save();
 
-    // যদি অন্য কেউ রিঅ্যাক্ট দেয়, তবে পোস্টের মালিককে নোটিফিকেশন পাঠানো
     if (isNewReaction && post.author.toString() !== userId.toString()) {
       await Notification.create({
         recipient: post.author,
@@ -211,7 +229,6 @@ exports.toggleReaction = async (req, res) => {
   }
 };
 
-// কমেন্ট করা এবং নোটিফিকেশন জেনারেট করা
 exports.addComment = async (req, res) => {
   try {
     const { text } = req.body;
@@ -232,15 +249,16 @@ exports.addComment = async (req, res) => {
     }
 
     const newComment = {
+      _id: new mongoose.Types.ObjectId(), // ইউনিক _id জেনারেশন
       user: userId,
       text: text.trim(),
+      replies: [],
       createdAt: new Date(),
     };
 
     post.comments.push(newComment);
     await post.save();
 
-    // যদি অন্য কেউ কমেন্ট করে, তবে পোস্টের মালিককে নোটিফিকেশন পাঠানো
     if (post.author.toString() !== userId.toString()) {
       await Notification.create({
         recipient: post.author,
@@ -251,18 +269,38 @@ exports.addComment = async (req, res) => {
       });
     }
 
-    const updatedPost = await SocialPost.findById(postId)
-      .populate("comments.user", "name username profileImage")
-      .populate("comments.replies.user", "name username profileImage");
+    let updatedPost = await SocialPost.findById(postId).lean();
+    let populatedComments = await populateCommentsRecursively(
+      updatedPost.comments,
+    );
 
-    res.status(200).json({ success: true, comments: updatedPost.comments });
+    res.status(200).json({ success: true, comments: populatedComments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// কমেন্টের রিপ্লাই বা সাব-কমেন্ট যোগ করার ফাংশন
-exports.addCommentReply = async (req, res) => {
+// সুনির্দিষ্ট রিকার্সিভ ফাংশন যা যেকোনো গভীরতার রিপ্লাই খুঁজে বের করে নতুন রিপ্লাই যুক্ত করবে
+const addReplyRecursive = (items, targetId, replyData) => {
+  if (!items || !Array.isArray(items)) return false;
+
+  for (let item of items) {
+    if (item && item._id) {
+      if (item._id.toString() === targetId.toString()) {
+        if (!item.replies) item.replies = [];
+        item.replies.push(replyData);
+        return true;
+      }
+      if (item.replies && item.replies.length > 0) {
+        const found = addReplyRecursive(item.replies, targetId, replyData);
+        if (found) return true;
+      }
+    }
+  }
+  return false;
+};
+
+exports.addNestedReply = async (req, res) => {
   try {
     const { text } = req.body;
     const { postId, commentId } = req.params;
@@ -281,32 +319,53 @@ exports.addCommentReply = async (req, res) => {
         .json({ success: false, message: "Post not found" });
     }
 
-    const comment = post.comments.id(commentId);
-    if (!comment) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Comment not found" });
-    }
-
-    comment.replies.push({
+    // প্রতিটা সাব-রিপ্লাইয়ের জন্য নতুন এবং নিশ্চিত unique _id জেনারেট করা হলো
+    const newReply = {
+      _id: new mongoose.Types.ObjectId(),
       user: userId,
       text: text.trim(),
+      replies: [],
       createdAt: new Date(),
-    });
+    };
+
+    let added = false;
+    for (let comment of post.comments) {
+      if (comment && comment._id) {
+        if (comment._id.toString() === commentId.toString()) {
+          if (!comment.replies) comment.replies = [];
+          comment.replies.push(newReply);
+          added = true;
+          break;
+        }
+        if (comment.replies && comment.replies.length > 0) {
+          added = addReplyRecursive(comment.replies, commentId, newReply);
+          if (added) break;
+        }
+      }
+    }
+
+    if (!added) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Target comment or reply not found" });
+    }
+
+    // নেস্টেড সাবডকুমেন্ট বা অ্যারে পরিবর্তনের পর মঙ্গুজকে মার্ক করা হলো
+    post.markModified("comments");
 
     await post.save();
 
-    const updatedPost = await SocialPost.findById(postId)
-      .populate("comments.user", "name username profileImage")
-      .populate("comments.replies.user", "name username profileImage");
+    let updatedPost = await SocialPost.findById(postId).lean();
+    let populatedComments = await populateCommentsRecursively(
+      updatedPost.comments,
+    );
 
-    res.status(200).json({ success: true, comments: updatedPost.comments });
+    res.status(200).json({ success: true, comments: populatedComments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// পোস্ট নিজের ফিডে শেয়ার (Repost) করার ফাংশন
 exports.sharePost = async (req, res) => {
   try {
     const postId = req.params.postId;
@@ -319,7 +378,6 @@ exports.sharePost = async (req, res) => {
         .json({ success: false, message: "Original post not found" });
     }
 
-    // নতুন পোস্ট তৈরি যা বর্তমান ইউজারের ফিডে দেখাবে
     const sharedPost = new SocialPost({
       author: userId,
       content: originalPost.content,
@@ -338,7 +396,6 @@ exports.sharePost = async (req, res) => {
         populate: { path: "author", select: "name username profileImage" },
       });
 
-    // চাইলে মূল পোস্টের মালিককে নোটিফিকেশন পাঠাতে পারেন
     if (originalPost.author.toString() !== userId.toString()) {
       await Notification.create({
         recipient: originalPost.author,

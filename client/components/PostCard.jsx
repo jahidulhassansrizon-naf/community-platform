@@ -1,8 +1,9 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import API from "../services/api";
 import ShareModal from "./ShareModal";
+import CommentItem from "./CommentItem";
 import {
   MessageCircle,
   Share2,
@@ -35,14 +36,19 @@ export default function PostCard({
   const [activeReactionPicker, setActiveReactionPicker] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentSort, setCommentSort] = useState("all");
-  const [activeReplyBoxes, setActiveReplyBoxes] = useState({});
-  const [replyTexts, setReplyTexts] = useState({});
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [hoveredReaction, setHoveredReaction] = useState(null);
 
   const hoverTimeoutRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const commentInputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
   const scrollToCommentBox = () => {
     if (commentInputRef.current) {
@@ -75,11 +81,34 @@ export default function PostCard({
     return `https://ui-avatars.com/api/?name=${fallbackName}&background=10B981&color=fff`;
   };
 
-  // অপটিমিস্টিক আপডেট লজিক (ইনস্ট্যান্ট রেসপন্সের জন্য)
+  const resolveUser = (userField) => {
+    if (!userField) {
+      return { name: "User", username: "user", profileImage: null };
+    }
+    // যদি ব্যাকএন্ড থেকে পপুলেটেড অবজেক্ট এবং প্রপার নাম থাকে
+    if (typeof userField === "object" && userField !== null && userField.name) {
+      return userField;
+    }
+
+    const userIdStr =
+      typeof userField === "string"
+        ? userField
+        : userField._id
+          ? userField._id.toString()
+          : userField.toString();
+
+    const currentIdStr = currentUserId ? currentUserId.toString() : "";
+    const isMe = userIdStr && currentIdStr && userIdStr === currentIdStr;
+
+    return {
+      name: isMe ? "You" : "User",
+      username: isMe ? "you" : "user",
+      profileImage: null,
+    };
+  };
+
   const handleReaction = async (reactionType = "like") => {
     const previousLikes = [...(post.likes || [])];
-
-    // কারেন্ট ইউজারের আগের লাইক/রিঅ্যাক্ট ফিল্টার করে বাদ দেওয়া এবং নতুন রিঅ্যাক্ট বসানো
     const filteredLikes = previousLikes.filter(
       (l) => (l.user?._id || l.user) !== currentUserId,
     );
@@ -88,7 +117,6 @@ export default function PostCard({
       { user: currentUserId, reaction: reactionType },
     ];
 
-    // ব্যাকএন্ডের উত্তরের জন্য অপেক্ষা না করে সাথে সাথেই UI আপডেট করা
     onUpdatePostsList(post._id, { likes: optimisticLikes });
     setActiveReactionPicker(false);
     setHoveredReaction(null);
@@ -97,11 +125,9 @@ export default function PostCard({
       const { data } = await API.put(`/social/like/${post._id}`, {
         reaction: reactionType,
       });
-      // সার্ভার থেকে আসল ডেটা আসার পর ফাইনাল সিঙ্ক করা
       onUpdatePostsList(post._id, { likes: data.likes });
     } catch (error) {
       console.error("Error reacting to post:", error);
-      // এরর হলে আগের অবস্থায় রিভার্ট করা
       onUpdatePostsList(post._id, { likes: previousLikes });
     }
   };
@@ -122,12 +148,8 @@ export default function PostCard({
   };
 
   const handleTouchStart = (e) => {
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
+    if (e.cancelable) e.preventDefault();
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-
     longPressTimerRef.current = setTimeout(() => {
       setActiveReactionPicker(true);
       if (navigator.vibrate) navigator.vibrate(70);
@@ -135,17 +157,13 @@ export default function PostCard({
   };
 
   const handleTouchMove = (e) => {
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
+    if (e.cancelable) e.preventDefault();
     if (!e.touches || e.touches.length === 0) return;
     const touch = e.touches[0];
     const targetElement = document.elementFromPoint(
       touch.clientX,
       touch.clientY,
     );
-
     const reactionBtn = targetElement?.closest("[data-reaction-key]");
     if (reactionBtn) {
       setHoveredReaction(reactionBtn.dataset.reactionKey);
@@ -154,11 +172,8 @@ export default function PostCard({
     }
   };
 
-  const handleTouchEnd = (e) => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-    }
-
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     if (activeReactionPicker) {
       if (hoveredReaction) {
         handleReaction(hoveredReaction);
@@ -169,9 +184,7 @@ export default function PostCard({
   };
 
   const handleTouchCancel = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-    }
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     setActiveReactionPicker(false);
     setHoveredReaction(null);
   };
@@ -190,17 +203,15 @@ export default function PostCard({
     }
   };
 
-  const handleAddReply = async (commentId) => {
-    const text = replyTexts[commentId] || "";
-    if (!text.trim()) return;
+  const handleReply = async (targetCommentId, text) => {
     try {
       const { data } = await API.post(
-        `/social/comment/${post._id}/${commentId}/reply`,
-        { text },
+        `/social/comment/${post._id}/${targetCommentId}/nested-reply`,
+        {
+          text: text,
+        },
       );
       onUpdatePostsList(post._id, { comments: data.comments });
-      setReplyTexts({ ...replyTexts, [commentId]: "" });
-      setActiveReplyBoxes((prev) => ({ ...prev, [commentId]: false }));
     } catch (error) {
       console.error("Error adding reply:", error);
       alert(error.response?.data?.message || "Failed to add reply");
@@ -462,6 +473,7 @@ export default function PostCard({
           </button>
         </form>
 
+        {/* কমেন্ট লিস্ট */}
         <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
           {(() => {
             let commentsList = [...(post.comments || [])];
@@ -471,99 +483,17 @@ export default function PostCard({
               );
             }
 
-            return commentsList.map((comment, index) => {
-              const commentId = comment._id || index;
-              return (
-                <div key={commentId} className="flex items-start gap-2.5">
-                  <img
-                    src={getAvatarUrl(comment.user)}
-                    alt={comment.user?.name || "User"}
-                    className="w-8 h-8 rounded-full object-cover mt-1 shrink-0"
-                  />
-                  <div className="flex-1">
-                    <div className="bg-gray-100 px-3.5 py-2 rounded-2xl inline-block max-w-full">
-                      <span className="font-semibold text-xs sm:text-sm text-gray-900 block">
-                        {comment.user?.name || "User"}
-                      </span>
-                      <p className="text-xs sm:text-sm text-gray-800 break-words">
-                        {comment.text}
-                      </p>
-                    </div>
-
-                    <div className="text-[10px] text-gray-500 ml-3 mt-1 flex items-center gap-3 font-medium">
-                      <button className="hover:text-emerald-600 transition cursor-pointer">
-                        Like
-                      </button>
-                      <button
-                        onClick={() =>
-                          setActiveReplyBoxes((prev) => ({
-                            ...prev,
-                            [commentId]: !prev[commentId],
-                          }))
-                        }
-                        className="hover:text-emerald-600 transition cursor-pointer"
-                      >
-                        Reply
-                      </button>
-                      <span>
-                        {new Date(comment.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    {comment.replies && comment.replies.length > 0 && (
-                      <div className="mt-2.5 ml-6 space-y-2 border-l-2 border-gray-100 pl-3">
-                        {comment.replies.map((reply, rIdx) => (
-                          <div
-                            key={reply._id || rIdx}
-                            className="flex items-start gap-2"
-                          >
-                            <img
-                              src={getAvatarUrl(reply.user)}
-                              alt={reply.user?.name || "User"}
-                              className="w-6 h-6 rounded-full object-cover mt-0.5 shrink-0"
-                            />
-                            <div className="bg-gray-100 px-3 py-1.5 rounded-2xl inline-block max-w-full">
-                              <span className="font-semibold text-[11px] text-gray-900 block">
-                                {reply.user?.name || "User"}
-                              </span>
-                              <p className="text-[11px] sm:text-xs text-gray-800 break-words">
-                                {reply.text}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {activeReplyBoxes[commentId] && (
-                      <div className="mt-2 ml-4 flex gap-2 items-center">
-                        <input
-                          type="text"
-                          value={replyTexts[commentId] || ""}
-                          onChange={(e) =>
-                            setReplyTexts({
-                              ...replyTexts,
-                              [commentId]: e.target.value,
-                            })
-                          }
-                          placeholder="Write a reply..."
-                          className="flex-1 px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 text-gray-800"
-                        />
-                        <button
-                          onClick={() => handleAddReply(commentId)}
-                          className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[11px] font-semibold transition cursor-pointer"
-                        >
-                          Reply
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            });
+            return commentsList.map((comment) => (
+              <CommentItem
+                key={comment._id}
+                comment={comment}
+                postId={post._id}
+                currentUserId={currentUserId}
+                onAddReply={handleReply}
+                getAvatarUrl={getAvatarUrl}
+                resolveUser={resolveUser}
+              />
+            ));
           })()}
         </div>
       </div>

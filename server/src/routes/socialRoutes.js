@@ -7,8 +7,8 @@ const {
   updatePost,
   addComment,
   toggleReaction,
-  addCommentReply,
-  sharePost, // <--- শেয়ার ফাংশনের নতুন ইমপোর্ট
+  addNestedReply, // নতুন রিকার্সভ রিপ্লাই ফাংশন
+  sharePost,
 } = require("../controllers/socialController");
 
 const { protect } = require("../middlewares/authMiddleware");
@@ -21,10 +21,14 @@ router.put("/:id", protect, upload.single("image"), updatePost);
 router.post("/comment/:postId", protect, addComment);
 router.put("/like/:postId", protect, toggleReaction);
 
-// কমেন্ট রিপ্লাইয়ের জন্য নতুন রাউট
-router.post("/comment/:postId/:commentId/reply", protect, addCommentReply);
+// ইউনিভার্সাল রিকার্সভ রিপ্লাই রাউট (যেকোনো লেভেলের কমেন্ট বা সাব-রিপ্লাইয়ের আন্ডারে রিপ্লাই দেওয়ার জন্য)
+router.post(
+  "/comment/:postId/:commentId/nested-reply",
+  protect,
+  addNestedReply,
+);
 
-// পোস্ট শেয়ার করার জন্য নতুন রাউট
+// পোস্ট শেয়ার করার জন্য রাউট
 router.post("/share/:postId", protect, sharePost);
 
 module.exports = router;

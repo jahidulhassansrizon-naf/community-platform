@@ -3,6 +3,25 @@ const SocialPost = require("../models/SocialPost");
 const { catchAsync } = require("../middlewares/errorMiddleware");
 const bcrypt = require("bcryptjs");
 
+// রিকার্সিভ ফাংশন যা প্রোফাইল পেজের কমেন্টস এবং সব নেস্টেড রিপ্লাইয়ের ইউজার আইডি পপুলেট করবে
+async function populateCommentsRecursively(comments) {
+  if (!comments || comments.length === 0) return comments;
+
+  for (let comment of comments) {
+    if (comment.user && !comment.user.name) {
+      const userDoc = await User.findById(comment.user).select(
+        "name username profileImage",
+      );
+      if (userDoc) comment.user = userDoc;
+    }
+
+    if (comment.replies && comment.replies.length > 0) {
+      await populateCommentsRecursively(comment.replies);
+    }
+  }
+  return comments;
+}
+
 const getUserProfile = catchAsync(async (req, res) => {
   const user = await User.findOne({ username: req.params.username }).select(
     "-password",
@@ -13,19 +32,23 @@ const getUserProfile = catchAsync(async (req, res) => {
     throw new Error("User not found");
   }
 
-  const posts = await SocialPost.find({ author: user._id })
+  let posts = await SocialPost.find({ author: user._id })
     .populate("author", "name username profileImage")
     .populate({
-      path: "comments.user",
-      select: "name username profileImage",
-    })
-    .populate({
-      path: "comments.replies.user",
+      path: "likes.user",
       select: "name username profileImage",
     })
     .sort({
       createdAt: -1,
-    });
+    })
+    .lean();
+
+  // প্রতিটা পোস্টের সব কমেন্ট ও নেস্টেড রিপ্লাই পপুলেট করা হলো
+  for (let post of posts) {
+    if (post.comments && post.comments.length > 0) {
+      post.comments = await populateCommentsRecursively(post.comments);
+    }
+  }
 
   res.status(200).json({
     user,

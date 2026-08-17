@@ -1,5 +1,30 @@
 const mongoose = require("mongoose");
 
+// ১. replySchema ডিক্লেয়ার (explicit _id: true সহ)
+const replySchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }, // এটি নিশ্চিত করে যে প্রতিটি নেস্টেড সাব-রিপ্লাই আলাদা _id পাবে
+);
+
+// ২. রিকার্সিভ সাব-রিপ্লাই যুক্ত করা
+replySchema.add({
+  replies: [replySchema],
+});
+
 const socialPostSchema = new mongoose.Schema({
   author: {
     type: mongoose.Schema.Types.ObjectId,
@@ -19,7 +44,6 @@ const socialPostSchema = new mongoose.Schema({
     enum: ["public", "friends"],
     default: "public",
   },
-  // শেয়ার ফিচারের জন্য এই দুটি নতুন ফিল্ড যোগ করা হলো
   isShared: {
     type: Boolean,
     default: false,
@@ -54,23 +78,7 @@ const socialPostSchema = new mongoose.Schema({
         type: String,
         required: true,
       },
-      replies: [
-        {
-          user: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            required: true,
-          },
-          text: {
-            type: String,
-            required: true,
-          },
-          createdAt: {
-            type: Date,
-            default: Date.now,
-          },
-        },
-      ],
+      replies: [replySchema],
       createdAt: {
         type: Date,
         default: Date.now,

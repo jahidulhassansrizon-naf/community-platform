@@ -103,8 +103,13 @@ export default function PostCard({
     }, 300);
   };
 
-  // মোবাইলের জন্য অপ্টিমাইজড লং প্রেস হ্যান্ডলার
+  // মোবাইলের জন্য অপ্টিমাইজড লং প্রেস হ্যান্ডলার (স্ক্রল বন্ধ করতে e.preventDefault যুক্ত করা হয়েছে)
   const handleTouchStart = (e) => {
+    // রিঅ্যাক্ট বাটন বা তার আশেপাশের এলাকায় টাচ শুরু হলেই পেজ স্ক্রল চিরতরে লক করে দেওয়া হবে
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
 
     longPressTimerRef.current = setTimeout(() => {
@@ -113,8 +118,12 @@ export default function PostCard({
     }, 250);
   };
 
-  // স্ক্রল ও রিয়েকশন সিলেকশন নিরাপদ করার টাচ মুভ হ্যান্ডলার
+  // টাচ মুভ করার সময় স্ক্রল যেন না হয় এবং রিঅ্যাক্ট সিলেক্ট হয় সেটি নিশ্চিত করা
   const handleTouchMove = (e) => {
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
     if (!e.touches || e.touches.length === 0) return;
     const touch = e.touches[0];
     const targetElement = document.elementFromPoint(
@@ -125,10 +134,12 @@ export default function PostCard({
     const reactionBtn = targetElement?.closest("[data-reaction-key]");
     if (reactionBtn) {
       setHoveredReaction(reactionBtn.dataset.reactionKey);
+    } else {
+      setHoveredReaction(null);
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e) => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
@@ -136,6 +147,8 @@ export default function PostCard({
     if (activeReactionPicker) {
       if (hoveredReaction) {
         handleReaction(hoveredReaction);
+      } else {
+        setActiveReactionPicker(false);
       }
     }
   };
@@ -144,6 +157,8 @@ export default function PostCard({
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
+    setActiveReactionPicker(false);
+    setHoveredReaction(null);
   };
 
   const handleAddComment = async (e) => {
@@ -371,6 +386,7 @@ export default function PostCard({
               }
             }}
             onDoubleClick={() => handleReaction("like")}
+            style={{ touchAction: "none" }}
             className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium transition py-1 cursor-pointer select-none ${currentConfig.color}`}
           >
             <span className="text-base">{currentConfig.emoji}</span>

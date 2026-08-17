@@ -75,16 +75,34 @@ export default function PostCard({
     return `https://ui-avatars.com/api/?name=${fallbackName}&background=10B981&color=fff`;
   };
 
+  // অপটিমিস্টিক আপডেট লজিক (ইনস্ট্যান্ট রেসপন্সের জন্য)
   const handleReaction = async (reactionType = "like") => {
+    const previousLikes = [...(post.likes || [])];
+
+    // কারেন্ট ইউজারের আগের লাইক/রিঅ্যাক্ট ফিল্টার করে বাদ দেওয়া এবং নতুন রিঅ্যাক্ট বসানো
+    const filteredLikes = previousLikes.filter(
+      (l) => (l.user?._id || l.user) !== currentUserId,
+    );
+    const optimisticLikes = [
+      ...filteredLikes,
+      { user: currentUserId, reaction: reactionType },
+    ];
+
+    // ব্যাকএন্ডের উত্তরের জন্য অপেক্ষা না করে সাথে সাথেই UI আপডেট করা
+    onUpdatePostsList(post._id, { likes: optimisticLikes });
+    setActiveReactionPicker(false);
+    setHoveredReaction(null);
+
     try {
       const { data } = await API.put(`/social/like/${post._id}`, {
         reaction: reactionType,
       });
+      // সার্ভার থেকে আসল ডেটা আসার পর ফাইনাল সিঙ্ক করা
       onUpdatePostsList(post._id, { likes: data.likes });
-      setActiveReactionPicker(false);
-      setHoveredReaction(null);
     } catch (error) {
       console.error("Error reacting to post:", error);
+      // এরর হলে আগের অবস্থায় রিভার্ট করা
+      onUpdatePostsList(post._id, { likes: previousLikes });
     }
   };
 
@@ -103,9 +121,7 @@ export default function PostCard({
     }, 300);
   };
 
-  // মোবাইলের জন্য অপ্টিমাইজড লং প্রেস হ্যান্ডলার (স্ক্রল বন্ধ করতে e.preventDefault যুক্ত করা হয়েছে)
   const handleTouchStart = (e) => {
-    // রিঅ্যাক্ট বাটন বা তার আশেপাশের এলাকায় টাচ শুরু হলেই পেজ স্ক্রল চিরতরে লক করে দেওয়া হবে
     if (e.cancelable) {
       e.preventDefault();
     }
@@ -118,7 +134,6 @@ export default function PostCard({
     }, 250);
   };
 
-  // টাচ মুভ করার সময় স্ক্রল যেন না হয় এবং রিঅ্যাক্ট সিলেক্ট হয় সেটি নিশ্চিত করা
   const handleTouchMove = (e) => {
     if (e.cancelable) {
       e.preventDefault();

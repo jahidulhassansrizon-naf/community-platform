@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -28,17 +28,20 @@ export default function UserProfilePage() {
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null); // <-- currentUser স্টেট যোগ করা হয়েছে
   const [uploading, setUploading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
 
-  // Profile Picture Dropdown State
+  // Dropdown & Popover Refs
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
+
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const notificationRef = useRef(null);
 
   // Notification States
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   // New Post States
   const [postContent, setPostContent] = useState("");
@@ -85,7 +88,7 @@ export default function UserProfilePage() {
   const [inlineBio, setInlineBio] = useState("");
   const [updatingBio, setUpdatingBio] = useState(false);
 
-  // Close profile menu on outside click
+  // Close menus on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -93,6 +96,12 @@ export default function UserProfilePage() {
         !profileMenuRef.current.contains(event.target)
       ) {
         setIsProfileMenuOpen(false);
+      }
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
+        setIsNotificationOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -103,13 +112,47 @@ export default function UserProfilePage() {
     };
   }, []);
 
+  // Global Drag Listeners for Cover Repositioning
+  useEffect(() => {
+    if (!isDragging || !isRepositioning) return;
+
+    const handleMove = (e) => {
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const deltaY = clientY - startY;
+      setCoverPosition((prev) => {
+        let newPos = prev + deltaY * 0.2;
+        if (newPos < 0) newPos = 0;
+        if (newPos > 100) newPos = 100;
+        return newPos;
+      });
+      setStartY(clientY);
+    };
+
+    const handleEnd = () => setIsDragging(false);
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleEnd);
+    window.addEventListener("touchmove", handleMove, { passive: false });
+    window.addEventListener("touchend", handleEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleEnd);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleEnd);
+    };
+  }, [isDragging, isRepositioning, startY]);
+
+  // Logged in User fetch করার জায়গায় currentUser সেট করা হলো
   useEffect(() => {
     const fetchCurrentAuthUser = async () => {
       try {
         const { data } = await API.get("/auth/me");
         setCurrentUserId(data._id || data.id);
+        setCurrentUser(data); // <-- currentUser ডাটা সেট করা হলো
       } catch (error) {
         setCurrentUserId(null);
+        setCurrentUser(null);
       }
     };
     fetchCurrentAuthUser();
@@ -131,7 +174,7 @@ export default function UserProfilePage() {
     try {
       await API.put("/notifications/read");
       setUnreadCount(0);
-      setNotifications(notifications.map((n) => ({ ...n, isRead: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch (error) {
       console.error("Error marking notifications as read:", error);
     }
@@ -241,8 +284,15 @@ export default function UserProfilePage() {
   const handlePostMediaChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     setPostMedia(file);
     setMediaPreview(URL.createObjectURL(file));
+  };
+
+  const removePostMedia = () => {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setPostMedia(null);
+    setMediaPreview(null);
   };
 
   const handleCreatePost = async (e) => {
@@ -263,8 +313,7 @@ export default function UserProfilePage() {
 
       setUserPosts([data.post, ...userPosts]);
       setPostContent("");
-      setPostMedia(null);
-      setMediaPreview(null);
+      removePostMedia();
     } catch (error) {
       console.error("Error creating post:", error);
       alert(error.response?.data?.message || "Failed to create post");
@@ -277,7 +326,7 @@ export default function UserProfilePage() {
     if (!confirm("Are you sure you want to delete this post?")) return;
     try {
       await API.delete(`/social/${postId}`);
-      setUserPosts(userPosts.filter((post) => post._id !== postId));
+      setUserPosts((prev) => prev.filter((post) => post._id !== postId));
     } catch (error) {
       console.error("Error deleting post:", error);
       alert(error.response?.data?.message || "Failed to delete post");
@@ -295,8 +344,19 @@ export default function UserProfilePage() {
   const handleEditMediaChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (editMediaPreview && editMediaPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(editMediaPreview);
+    }
     setEditMedia(file);
     setEditMediaPreview(URL.createObjectURL(file));
+  };
+
+  const removeEditMedia = () => {
+    if (editMediaPreview && editMediaPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(editMediaPreview);
+    }
+    setEditMedia(null);
+    setEditMediaPreview(null);
   };
 
   const handleUpdatePost = async (e) => {
@@ -315,8 +375,8 @@ export default function UserProfilePage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      setUserPosts(
-        userPosts.map((p) => (p._id === editingPost._id ? data.post : p)),
+      setUserPosts((prev) =>
+        prev.map((p) => (p._id === editingPost._id ? data.post : p)),
       );
       setEditingPost(null);
     } catch (error) {
@@ -329,32 +389,9 @@ export default function UserProfilePage() {
 
   const handleMouseDown = (e) => {
     if (!isRepositioning) return;
-    if (e.type === "touchstart") {
-      e.preventDefault();
-    }
     setIsDragging(true);
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     setStartY(clientY);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging || !isRepositioning) return;
-    if (e.type === "touchmove") {
-      e.preventDefault();
-    }
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const deltaY = clientY - startY;
-    setCoverPosition((prev) => {
-      let newPos = prev + deltaY * 0.2;
-      if (newPos < 0) newPos = 0;
-      if (newPos > 100) newPos = 100;
-      return newPos;
-    });
-    setStartY(clientY);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
   };
 
   const handleUpdateProfile = async (e) => {
@@ -445,14 +482,7 @@ export default function UserProfilePage() {
   const isOwnProfile = currentUserId && profileUser._id === currentUserId;
 
   return (
-    /* touch-pan-y এবং overscroll-y-contain যোগ করা হলো যাতে রিঅ্যাক্ট করার সময় পেজ স্ক্রল না করে */
-    <div
-      className="min-h-screen bg-gray-50 pb-12 select-none touch-pan-y overscroll-y-contain"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onTouchMove={handleMouseMove}
-      onTouchEnd={handleMouseUp}
-    >
+    <div className="min-h-screen bg-gray-50 pb-12">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex flex-col gap-6">
         {/* Top Header / Nav */}
         <div className="flex justify-between items-center relative">
@@ -467,7 +497,7 @@ export default function UserProfilePage() {
           <div className="flex items-center gap-3">
             {/* Notification Bell & Dropdown */}
             {isOwnProfile && (
-              <div className="relative">
+              <div className="relative" ref={notificationRef}>
                 <button
                   onClick={() => {
                     setIsNotificationOpen(!isNotificationOpen);
@@ -522,13 +552,14 @@ export default function UserProfilePage() {
                                 {notif.message}
                               </p>
                               <span className="text-[10px] text-gray-400 mt-1 block">
-                                {new Date(notif.createdAt).toLocaleTimeString(
-                                  [],
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
+                                {notif.createdAt
+                                  ? new Date(
+                                      notif.createdAt,
+                                    ).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : ""}
                               </span>
                             </div>
                           </div>
@@ -556,10 +587,9 @@ export default function UserProfilePage() {
         <div className="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100 relative">
           {/* Cover Image Section */}
           <div
-            className={`h-36 sm:h-48 md:h-64 w-full relative bg-gradient-to-r from-emerald-500 to-teal-600 overflow-hidden ${
-              isRepositioning ? "cursor-ns-resize" : ""
+            className={`h-36 sm:h-48 md:h-64 w-full relative bg-gradient-to-r from-emerald-500 to-teal-600 overflow-hidden select-none ${
+              isRepositioning ? "cursor-ns-resize touch-none" : ""
             }`}
-            style={{ touchAction: isRepositioning ? "none" : "auto" }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleMouseDown}
           >
@@ -644,9 +674,9 @@ export default function UserProfilePage() {
           {/* Profile Info Section */}
           <div className="px-4 sm:px-6 pb-6 pt-16 sm:pt-6 relative">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 text-center sm:text-left w-full">
-              {/* Profile Picture with Click-to-Toggle Popup Menu */}
+              {/* Profile Picture */}
               <div
-                className="absolute -top-12 sm:-top-16 md:-top-20 left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 z-40"
+                className="absolute -top-12 sm:-top-16 md:-top-20 left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 z-40 select-none"
                 ref={profileMenuRef}
               >
                 <div
@@ -817,10 +847,7 @@ export default function UserProfilePage() {
                         <div className="relative inline-block mt-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              setPostMedia(null);
-                              setMediaPreview(null);
-                            }}
+                            onClick={removePostMedia}
                             className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1 rounded-full text-xs z-10 cursor-pointer"
                           >
                             <X size={14} />
@@ -899,12 +926,13 @@ export default function UserProfilePage() {
                   key={post._id}
                   post={post}
                   currentUserId={currentUserId}
+                  currentUser={currentUser} // <-- এখানে currentUser প্রপস পাস করে দেওয়া হয়েছে
                   isOwnProfile={isOwnProfile}
                   onDelete={handleDeletePost}
                   onEditClick={openEditModal}
                   onUpdatePostsList={(postId, updatedData) => {
-                    setUserPosts(
-                      userPosts.map((p) =>
+                    setUserPosts((prev) =>
+                      prev.map((p) =>
                         p._id === postId ? { ...p, ...updatedData } : p,
                       ),
                     );
@@ -946,10 +974,7 @@ export default function UserProfilePage() {
                 <div className="relative inline-block">
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditMedia(null);
-                      setEditMediaPreview(null);
-                    }}
+                    onClick={removeEditMedia}
                     className="absolute top-2 right-2 bg-black/75 text-white p-1 rounded-full text-xs cursor-pointer"
                   >
                     <X size={14} />

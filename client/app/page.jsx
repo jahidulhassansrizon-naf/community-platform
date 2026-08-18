@@ -92,6 +92,7 @@ export default function Home() {
               key={post._id}
               post={post}
               currentUserId={currentUserId}
+              currentUser={user} // <-- এখানে লগইন করা ইউজারের অবজেক্ট পাস করে দেওয়া হলো
               onUpdatePostsList={(postId, updatedData) => {
                 setFeedPosts(
                   feedPosts.map((p) =>

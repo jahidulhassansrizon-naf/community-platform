@@ -18,8 +18,8 @@ import {
   Sticker,
 } from "lucide-react";
 
-// হুবহু ফেসবুক স্টাইল শেয়ার আইকন (বড় সাইজ)
-const FacebookShareIcon = ({ size = 19, className = "" }) => (
+// হুবহু ফেসবুক স্টাইল শেয়ার আইকন
+const FacebookShareIcon = ({ size = 18, className = "" }) => (
   <svg
     width={size}
     height={size}
@@ -35,8 +35,8 @@ const FacebookShareIcon = ({ size = 19, className = "" }) => (
   </svg>
 );
 
-// কমেন্ট আইকন - ডান দিকের কোণাসহ (বড় সাইজ)
-const FacebookCommentIcon = ({ size = 19, className = "" }) => (
+// কমেন্ট আইকন - ডান দিকের কোণাসহ
+const FacebookCommentIcon = ({ size = 18, className = "" }) => (
   <svg
     width={size}
     height={size}
@@ -376,7 +376,7 @@ export default function PostCard({
   const topReactions = getTopReactions();
 
   const renderPostContent = () => (
-    <div className="select-text cursor-text">
+    <div className="select-text cursor-text w-full">
       {!post.isShared ? (
         <>
           {post.content && (
@@ -385,7 +385,6 @@ export default function PostCard({
             </p>
           )}
 
-          {/* ফেসবুকের মতো টেক্সট এবং ছবির মাঝখানে চিকন বর্ডার লাইন */}
           {post.content && post.image && (
             <div className="border-t border-gray-100 w-full" />
           )}
@@ -464,7 +463,7 @@ export default function PostCard({
 
   return (
     <>
-      <div className="bg-white shadow-sm rounded-2xl border border-gray-100 hover:shadow-md transition overflow-visible">
+      <div className="w-screen relative left-1/2 -translate-x-1/2 sm:w-full sm:static sm:translate-x-0 bg-white shadow-none sm:shadow-sm rounded-none sm:rounded-2xl border-x-0 sm:border border-gray-100 hover:shadow-md transition overflow-visible">
         {post.isShared && (
           <div className="mx-4 mt-3 mb-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50/60 px-3 py-1.5 rounded-xl border border-emerald-100 w-fit">
             <Repeat size={14} />
@@ -523,115 +522,242 @@ export default function PostCard({
 
         {renderPostContent()}
 
-        {/* FB REAL STYLE REACTION BAR */}
-        <div className="flex items-center justify-between px-4 py-2 text-xs text-gray-600 border-t border-gray-100 select-none bg-white relative rounded-b-2xl">
-          <div className="flex items-center gap-5">
-            {/* FB Reaction Popup Container */}
-            <div
-              className="relative"
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
-            >
-              {activeReactionPicker && (
-                <div className="absolute -top-14 left-0 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200/80 rounded-full px-2.5 py-1.5 flex items-center gap-2 z-50 transition-all duration-200 ease-out transform scale-100 origin-bottom-left select-none whitespace-nowrap min-w-max">
-                  {Object.entries(reactionConfig).map(([key, config]) => {
-                    const isHovered = hoveredReaction === key;
-                    return (
-                      <button
-                        key={key}
-                        data-reaction-key={key}
-                        onMouseEnter={() => setHoveredReaction(key)}
-                        onMouseLeave={() => setHoveredReaction(null)}
-                        onClick={() => handleReaction(key)}
-                        className={`relative shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
-                          isHovered
-                            ? "scale-[1.4] -translate-y-2 z-50"
-                            : "hover:scale-115 hover:-translate-y-0.5"
-                        }`}
-                        title={config.label}
-                      >
-                        {isHovered && (
-                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-md whitespace-nowrap pointer-events-none">
-                            {config.label}
-                          </span>
-                        )}
-                        <ReactionIcon
-                          config={config}
-                          className="w-full h-full p-0.5"
-                        />
-                      </button>
-                    );
-                  })}
+        {/* REACTION & ACTION BAR */}
+        <div className="border-t border-gray-100 bg-white relative rounded-b-2xl">
+          {/* MOBILE ONLY: Top Counter Bar */}
+          <div className="flex sm:hidden items-center justify-between px-4 py-2 text-xs text-gray-600 border-b border-gray-100 select-none">
+            <div className="flex items-center gap-1.5">
+              {topReactions.length > 0 ? (
+                <div className="flex items-center -space-x-1.5">
+                  {topReactions.map((rKey, index) => (
+                    <div
+                      key={rKey}
+                      className="w-4 h-4 rounded-full bg-white ring-2 ring-white flex items-center justify-center shadow-sm overflow-hidden"
+                      style={{ zIndex: 10 - index }}
+                    >
+                      <ReactionIcon
+                        config={reactionConfig[rKey]}
+                        className="w-full h-full p-[1px]"
+                      />
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              <button
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchCancel}
-                onClick={() => {
-                  if (!activeReactionPicker) {
-                    handleReaction("like");
-                  } else {
-                    setActiveReactionPicker(false);
-                  }
-                }}
-                onDoubleClick={() => handleReaction("like")}
-                style={{ touchAction: "none" }}
-                className={`flex items-center gap-1.5 font-medium transition cursor-pointer hover:opacity-80 ${
-                  currentReactionType ? currentConfig.color : "text-gray-600"
-                }`}
-              >
-                {currentReactionType ? (
-                  <ReactionIcon config={currentConfig} className="w-5 h-5" />
-                ) : (
-                  <ThumbsUp size={19} />
-                )}
-                <span className="font-semibold text-gray-700">
-                  {likesCount}
+              ) : (
+                <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px]">
+                  👍
                 </span>
+              )}
+              <span className="font-semibold text-gray-700">{likesCount}</span>
+            </div>
+
+            <div className="flex items-center gap-3 font-medium text-gray-600">
+              <span>{commentsCount} comments</span>
+            </div>
+          </div>
+
+          {/* DESKTOP ONLY */}
+          <div className="hidden sm:flex items-center justify-between px-2 py-1 w-full select-none">
+            <div className="flex items-center gap-0.5">
+              {/* Like Button */}
+              <div
+                className="relative"
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
+                {activeReactionPicker && (
+                  <div className="absolute -top-14 left-0 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200/80 rounded-full px-2.5 py-1.5 flex items-center gap-2 z-50 transition-all duration-200 ease-out transform scale-100 origin-bottom-left select-none whitespace-nowrap min-w-max">
+                    {Object.entries(reactionConfig).map(([key, config]) => {
+                      const isHovered = hoveredReaction === key;
+                      return (
+                        <button
+                          key={key}
+                          data-reaction-key={key}
+                          onMouseEnter={() => setHoveredReaction(key)}
+                          onMouseLeave={() => setHoveredReaction(null)}
+                          onClick={() => handleReaction(key)}
+                          className={`relative shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
+                            isHovered
+                              ? "scale-[1.4] -translate-y-2 z-50"
+                              : "hover:scale-115 hover:-translate-y-0.5"
+                          }`}
+                          title={config.label}
+                        >
+                          {isHovered && (
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-md whitespace-nowrap pointer-events-none">
+                              {config.label}
+                            </span>
+                          )}
+                          <ReactionIcon
+                            config={config}
+                            className="w-full h-full p-0.5"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => handleReaction("like")}
+                  className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:bg-gray-100 transition font-medium text-sm cursor-pointer ${
+                    currentReactionType ? currentConfig.color : "text-gray-600"
+                  }`}
+                >
+                  {currentReactionType ? (
+                    <ReactionIcon config={currentConfig} className="w-5 h-5" />
+                  ) : (
+                    <ThumbsUp size={18} />
+                  )}
+                  <span className="font-semibold text-gray-700">Like</span>
+                  {likesCount > 0 && (
+                    <span className="text-xs text-gray-500 font-normal ml-0.5">
+                      ({likesCount})
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Comment Button */}
+              <button
+                onClick={openCommentModal}
+                className="flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:bg-gray-100 transition font-medium text-sm text-gray-600 hover:text-emerald-600 cursor-pointer"
+              >
+                <FacebookCommentIcon size={18} />
+                <span className="font-semibold text-gray-700">Comment</span>
+                {commentsCount > 0 && (
+                  <span className="text-xs text-gray-500 font-normal ml-0.5">
+                    ({commentsCount})
+                  </span>
+                )}
+              </button>
+
+              {/* Share Button */}
+              <button
+                onClick={() => setIsShareModalOpen(true)}
+                className="flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:bg-gray-100 transition font-medium text-sm text-gray-600 hover:text-emerald-600 cursor-pointer"
+              >
+                <FacebookShareIcon size={18} />
+                <span className="font-semibold text-gray-700">Share</span>
+                {sharesCount > 0 && (
+                  <span className="text-xs text-gray-500 font-normal ml-0.5">
+                    ({sharesCount})
+                  </span>
+                )}
               </button>
             </div>
 
-            {/* Facebook Style Comment Icon (Larger Size) */}
-            <button
-              onClick={openCommentModal}
-              className="flex items-center gap-1.5 font-medium text-gray-600 hover:text-emerald-600 transition cursor-pointer"
-            >
-              <FacebookCommentIcon size={19} />
-              <span className="font-semibold text-gray-700">
-                {commentsCount}
-              </span>
-            </button>
-
-            {/* Facebook Style Share Icon (Larger Size) */}
-            <button
-              onClick={() => setIsShareModalOpen(true)}
-              className="flex items-center gap-1.5 font-medium text-gray-600 hover:text-emerald-600 transition cursor-pointer"
-            >
-              <FacebookShareIcon size={19} />
-              <span className="font-semibold text-gray-700">{sharesCount}</span>
-            </button>
+            {/* Top Reactions Emojis */}
+            {topReactions.length > 0 && (
+              <div className="flex items-center -space-x-1 pr-2 shrink-0">
+                {topReactions.map((rKey, index) => (
+                  <div
+                    key={rKey}
+                    className="w-4 h-4 rounded-full bg-white ring-2 ring-white flex items-center justify-center shadow-sm overflow-hidden"
+                    style={{ zIndex: 10 - index }}
+                  >
+                    <ReactionIcon
+                      config={reactionConfig[rKey]}
+                      className="w-full h-full p-[1px]"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Right Side: Overlapping Top Reactions Summary */}
-          {topReactions.length > 0 && (
-            <div className="flex items-center -space-x-1.5">
-              {topReactions.map((rKey, index) => (
-                <div
-                  key={rKey}
-                  className="w-5 h-5 rounded-full bg-white ring-2 ring-white flex items-center justify-center shadow-sm overflow-hidden"
-                  style={{ zIndex: 10 - index }}
+          {/* MOBILE MAIN ACTION BUTTONS BAR */}
+          <div className="px-2.5 py-1.5 sm:hidden">
+            <div className="grid grid-cols-3 w-full gap-1.5">
+              <div
+                className="relative w-full"
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
+                {activeReactionPicker && (
+                  <div className="absolute -top-14 left-0 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200/80 rounded-full px-2.5 py-1.5 flex items-center gap-2 z-50 transition-all duration-200 ease-out transform scale-100 origin-bottom-left select-none whitespace-nowrap min-w-max">
+                    {Object.entries(reactionConfig).map(([key, config]) => {
+                      const isHovered = hoveredReaction === key;
+                      return (
+                        <button
+                          key={key}
+                          data-reaction-key={key}
+                          onMouseEnter={() => setHoveredReaction(key)}
+                          onMouseLeave={() => setHoveredReaction(null)}
+                          onClick={() => handleReaction(key)}
+                          className={`relative shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ease-out cursor-pointer ${
+                            isHovered
+                              ? "scale-[1.4] -translate-y-2 z-50"
+                              : "hover:scale-115 hover:-translate-y-0.5"
+                          }`}
+                          title={config.label}
+                        >
+                          {isHovered && (
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-md whitespace-nowrap pointer-events-none">
+                              {config.label}
+                            </span>
+                          )}
+                          <ReactionIcon
+                            config={config}
+                            className="w-full h-full p-0.5"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <button
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={handleTouchCancel}
+                  onClick={() => {
+                    if (!activeReactionPicker) {
+                      handleReaction("like");
+                    } else {
+                      setActiveReactionPicker(false);
+                    }
+                  }}
+                  onDoubleClick={() => handleReaction("like")}
+                  style={{ touchAction: "none" }}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-gray-100/80 hover:bg-gray-200 transition font-medium text-sm w-full cursor-pointer ${
+                    currentReactionType ? currentConfig.color : "text-gray-600"
+                  }`}
                 >
-                  <ReactionIcon
-                    config={reactionConfig[rKey]}
-                    className="w-full h-full p-[1px]"
-                  />
-                </div>
-              ))}
+                  {currentReactionType ? (
+                    <ReactionIcon config={currentConfig} className="w-5 h-5" />
+                  ) : (
+                    <ThumbsUp size={18} />
+                  )}
+                  <span className="font-semibold text-xs sm:text-sm text-gray-700">
+                    Like
+                  </span>
+                </button>
+              </div>
+
+              {/* Comment Button */}
+              <button
+                onClick={openCommentModal}
+                className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-gray-100/80 hover:bg-gray-200 transition font-medium text-sm text-gray-600 hover:text-emerald-600 w-full cursor-pointer"
+              >
+                <FacebookCommentIcon size={18} />
+                <span className="font-semibold text-xs sm:text-sm text-gray-700">
+                  Comment
+                </span>
+              </button>
+
+              {/* Share Button */}
+              <button
+                onClick={() => setIsShareModalOpen(true)}
+                className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-gray-100/80 hover:bg-gray-200 transition font-medium text-sm text-gray-600 hover:text-emerald-600 w-full cursor-pointer"
+              >
+                <FacebookShareIcon size={18} />
+                <span className="font-semibold text-xs sm:text-sm text-gray-700">
+                  Share
+                </span>
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -691,7 +817,7 @@ export default function PostCard({
                           className="w-4 h-4"
                         />
                       ) : (
-                        <ThumbsUp size={19} />
+                        <ThumbsUp size={18} />
                       )}
                       <span>{likesCount}</span>
                     </button>
@@ -699,14 +825,14 @@ export default function PostCard({
                       onClick={() => commentInputRef.current?.focus()}
                       className="flex items-center gap-1.5 font-semibold text-gray-600 hover:text-emerald-600 transition"
                     >
-                      <FacebookCommentIcon size={19} />
+                      <FacebookCommentIcon size={18} />
                       <span>{commentsCount}</span>
                     </button>
                     <button
                       onClick={() => setIsShareModalOpen(true)}
                       className="flex items-center gap-1.5 font-semibold text-gray-600 hover:text-emerald-600 transition"
                     >
-                      <FacebookShareIcon size={19} />
+                      <FacebookShareIcon size={18} />
                       <span>{sharesCount}</span>
                     </button>
                   </div>
